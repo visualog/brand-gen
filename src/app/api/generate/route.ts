@@ -4,7 +4,7 @@ import { BrandGenAI } from "@/lib/ai-provider";
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, style, customStyle } = await req.json();
+    const { prompt, style, customStyle, ratio = "1:1", resolution = "HD" } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
@@ -31,8 +31,23 @@ export async function POST(req: NextRequest) {
 
     const refinedPrompt = `${styleModifier ? styleModifier + ", " : ""}${enhancedPrompt}`;
     
+    let width = 1024;
+    let height = 1024;
+    const baseSize = resolution === "HD" ? 1024 : 768;
+
+    if (ratio === "16:9") {
+      width = baseSize;
+      height = Math.round(baseSize * (9 / 16));
+    } else if (ratio === "9:16") {
+      height = baseSize;
+      width = Math.round(baseSize * (9 / 16));
+    } else {
+      width = baseSize;
+      height = baseSize;
+    }
+
     // Step 2: Generate the image URL
-    const imageUrl = await BrandGenAI.generateImageUrl({ prompt: refinedPrompt });
+    const imageUrl = await BrandGenAI.generateImageUrl({ prompt: refinedPrompt, width, height });
     console.log("Generating image for URL:", imageUrl);
 
     // Proxy the image to avoid CORS/Loading issues
