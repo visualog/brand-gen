@@ -1,4 +1,4 @@
-import { Handle, Position, useEdges, useReactFlow, useConnection } from '@xyflow/react';
+import { Handle, Position, useEdges, useConnection } from '@xyflow/react';
 import React from 'react';
 import { Wand2, Play, Loader2, Sparkles } from 'lucide-react';
 
@@ -39,12 +39,25 @@ const bodyStyle = {
   gap: '10px',
 };
 
-export function OutputNode({ data }: any) {
+type OutputNodeData = {
+  englishPrompt?: string;
+  isTranslating?: boolean;
+  onGenerate?: () => void;
+  canGenerate?: boolean;
+  isGenerating?: boolean;
+};
+
+export function OutputNode({ data }: { data: OutputNodeData }) {
   const connection = useConnection();
   const isDragging = connection.inProgress; // 다른 노드에서 연결선을 드래그 중
 
-
-  const { englishPrompt, isTranslating, onGenerate, canGenerate, isGenerating } = data;
+  const {
+    englishPrompt = "",
+    isTranslating = false,
+    onGenerate,
+    canGenerate = false,
+    isGenerating = false,
+  } = data;
 
   const edges = useEdges();
   const id = "output-node";
@@ -53,7 +66,17 @@ export function OutputNode({ data }: any) {
   const isStyleConnected   = edges.some(e => e.target === id && e.source === 'style-node');
   const isRatioConnected   = edges.some(e => e.target === id && e.source === 'ratio-node');
   const isResConnected     = edges.some(e => e.target === id && e.source === 'resolution-node');
-  const isAnyConnected     = isPromptConnected || isStyleConnected || isRatioConnected || isResConnected;
+  const isCompositionConnected = edges.some(e => e.target === id && e.source === 'composition-node');
+  const isBackgroundConnected = edges.some(e => e.target === id && e.source === 'background-node');
+  const isConstraintConnected = edges.some(e => e.target === id && e.source === 'constraint-node');
+  const isMoodConnected = edges.some(e => e.target === id && e.source === 'mood-node');
+  const isPaletteConnected = edges.some(e => e.target === id && e.source === 'palette-node');
+  const isCameraAngleConnected = edges.some(e => e.target === id && e.source === 'camera-angle-node');
+  const isLightingConnected = edges.some(e => e.target === id && e.source === 'lighting-node');
+  const isGestureConnected = edges.some(e => e.target === id && e.source === 'gesture-node');
+  const isPropsConnected = edges.some(e => e.target === id && e.source === 'props-node');
+  const isDetailConnected = edges.some(e => e.target === id && e.source === 'detail-node');
+  const isAnyConnected     = isPromptConnected || isStyleConnected || isRatioConnected || isResConnected || isCompositionConnected || isBackgroundConnected || isConstraintConnected || isMoodConnected || isPaletteConnected || isCameraAngleConnected || isLightingConnected || isGestureConnected || isPropsConnected || isDetailConnected;
   const isCanvasConnected  = edges.some(e => e.source === id);
 
   const getMixedColor = () => {
@@ -62,6 +85,16 @@ export function OutputNode({ data }: any) {
     if (isStyleConnected)  colors.push('var(--port-style)');
     if (isRatioConnected)  colors.push('var(--port-ratio)');
     if (isResConnected)    colors.push('var(--port-resolution)');
+    if (isCompositionConnected) colors.push('var(--port-composition)');
+    if (isBackgroundConnected) colors.push('var(--port-background)');
+    if (isConstraintConnected) colors.push('var(--port-constraint)');
+    if (isMoodConnected) colors.push('var(--port-mood)');
+    if (isPaletteConnected) colors.push('var(--port-palette)');
+    if (isCameraAngleConnected) colors.push('var(--port-camera-angle)');
+    if (isLightingConnected) colors.push('var(--port-lighting)');
+    if (isGestureConnected) colors.push('var(--port-gesture)');
+    if (isPropsConnected) colors.push('var(--port-props)');
+    if (isDetailConnected) colors.push('var(--port-detail)');
     if (colors.length === 0) return 'transparent';
     if (colors.length === 1) return colors[0];
     let mixed = colors[0];
@@ -81,12 +114,40 @@ export function OutputNode({ data }: any) {
     isStyleConnected  && { label: '스타일', color: 'var(--port-style)' },
     isRatioConnected  && { label: '비율', color: 'var(--port-ratio)' },
     isResConnected    && { label: '해상도', color: 'var(--port-resolution)' },
+    isCompositionConnected && { label: '구도', color: 'var(--port-composition)' },
+    isBackgroundConnected && { label: '배경', color: 'var(--port-background)' },
+    isConstraintConnected && { label: '제한', color: 'var(--port-constraint)' },
+    isMoodConnected && { label: '무드', color: 'var(--port-mood)' },
+    isPaletteConnected && { label: '팔레트', color: 'var(--port-palette)' },
+    isCameraAngleConnected && { label: '앵글', color: 'var(--port-camera-angle)' },
+    isLightingConnected && { label: '조명', color: 'var(--port-lighting)' },
+    isGestureConnected && { label: '제스처', color: 'var(--port-gesture)' },
+    isPropsConnected && { label: '소품', color: 'var(--port-props)' },
+    isDetailConnected && { label: '밀도', color: 'var(--port-detail)' },
   ].filter(Boolean) as { label: string; color: string }[];
 
   const hasPrompt = isAnyConnected && !!englishPrompt;
 
   return (
     <div style={nodeStyle}>
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="general-in"
+        isConnectable={true}
+        style={{
+          width: '24px',
+          height: '24px',
+          background: 'transparent',
+          border: 'none',
+          opacity: 0,
+          left: '-12px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          cursor: 'crosshair',
+        }}
+      />
+
       {/* 오른쪽 출력 핸들 — 항상 렌더링 (Edge 라우팅에 필요), 시각적 dot은 조건부 */}
       <Handle
         type="source"
@@ -111,13 +172,13 @@ export function OutputNode({ data }: any) {
         {isTranslating && (
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Loader2 size={12} color="var(--text-secondary)" style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Gemini 생성 중</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Codex 생성 중</span>
           </div>
         )}
       </div>
 
       <div style={bodyStyle}>
-        {/* 왼쪽 통합 입력점 — 연결됐거나 드래그 중일 때만 표시 */}
+        {/* 왼쪽 통합 입력점 장식 — 실제 Handle은 위에서 항상 고정 렌더링 */}
         {showInputDot && (
           <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
             <div
@@ -138,48 +199,11 @@ export function OutputNode({ data }: any) {
                 position: 'relative',
               }}
             >
-              <Handle
-                type="target"
-                position={Position.Left}
-                id="general-in"
-                isConnectable={true}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  background: 'transparent',
-                  border: 'none',
-                  opacity: 0,
-                  cursor: 'crosshair',
-                  position: 'absolute',
-                  inset: 0,
-                  transform: 'none',
-                  left: 'auto',
-                  top: 'auto',
-                }}
-              />
               {!isAnyConnected && (
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-muted)' }} />
               )}
             </div>
           </div>
-        )}
-        {/* 드래그 중 아닐 때도 Handle은 존재해야 연결 가능 — 투명하게 유지 */}
-        {!showInputDot && (
-          <Handle
-            type="target"
-            position={Position.Left}
-            id="general-in"
-            isConnectable={true}
-            style={{
-              width: '24px',
-              height: '24px',
-              background: 'transparent',
-              border: 'none',
-              opacity: 0,
-              left: '-12px',
-              cursor: 'crosshair',
-            }}
-          />
         )}
 
         {/* 연결된 파라미터 태그 */}
@@ -232,7 +256,7 @@ export function OutputNode({ data }: any) {
           {isAnyConnected && isTranslating && !englishPrompt && (
             <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '196px', gap: '8px' }}>
               <Loader2 size={20} color="var(--text-secondary)" style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Gemini가 프롬프트 생성 중...</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Codex가 프롬프트 생성 중...</span>
             </div>
           )}
 

@@ -34,6 +34,16 @@
   --port-style: #f97316; /* Orange */
   --port-ratio: #3b82f6; /* Blue */
   --port-resolution: #8b5cf6; /* Purple */
+  --port-composition: #14b8a6; /* Teal */
+  --port-background: #f59e0b; /* Amber */
+  --port-constraint: #ef4444; /* Red */
+  --port-mood: #ec4899; /* Pink */
+  --port-palette: #06b6d4; /* Cyan */
+  --port-camera-angle: #10b981; /* Emerald */
+  --port-lighting: #facc15; /* Yellow */
+  --port-gesture: #fb7185; /* Rose */
+  --port-props: #84cc16; /* Lime */
+  --port-detail: #6366f1; /* Indigo */
 
   /* === Radius Tokens === */
   --radius-sm: 6px;
@@ -180,5 +190,3 @@ button {
 /* Legacy button classes (for compatibility) */
 .button-primary { composes: btn-primary; }
 .button-secondary { composes: btn-secondary; }
-
-

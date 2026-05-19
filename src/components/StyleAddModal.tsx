@@ -85,7 +85,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
     setUrlInput("");
   };
 
-  // Gemini 이미지 분석
+  // Codex 이미지 분석
   const handleAnalyze = async () => {
     if (!imageBase64 && !imageUrl) return;
     setIsAnalyzing(true);
@@ -102,8 +102,8 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
       } else {
         setAnalyzeError(data.error || "분석 실패");
       }
-    } catch (e: any) {
-      setAnalyzeError(e.message);
+    } catch (error: unknown) {
+      setAnalyzeError(error instanceof Error ? error.message : "분석 중 오류가 발생했습니다.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -295,7 +295,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
               >
                 {isAnalyzing
                   ? <><Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> 분석 중...</>
-                  : <><Sparkles size={11} /> Gemini 자동 분석</>
+                  : <><Sparkles size={11} /> Codex 자동 분석</>
                 }
               </button>
             </div>
@@ -303,7 +303,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={hasImage
-                ? "스타일을 직접 설명하거나 'Gemini 자동 분석'으로 제안을 받으세요..."
+                ? "스타일을 직접 설명하거나 'Codex 자동 분석'으로 제안을 받으세요..."
                 : "이미지를 먼저 첨부하세요."}
               rows={4}
               style={{
