@@ -58,6 +58,14 @@ export interface WorkerGenerateTitleResponse {
   title: string;
 }
 
+export interface WorkerConsistencyResponse {
+  character: string;
+  object: string;
+  style: string;
+  composition: string;
+  rules: string[];
+}
+
 export interface WorkerGenerateResponse {
   url: string;
   threadId: string;
@@ -70,6 +78,8 @@ export interface WorkerGenerateResponse {
 export function translateViaWorker(payload: {
   prompt?: string;
   style?: string;
+  characterReference?: string | null;
+  objectReference?: string | null;
   ratio?: string;
   resolution?: string;
   composition?: string | null;
@@ -78,6 +88,7 @@ export function translateViaWorker(payload: {
   mood?: string | null;
   palette?: string | null;
   cameraAngle?: string | null;
+  objectAngle?: string | null;
   lighting?: string | null;
   gesture?: string | null;
   propsPrompt?: string | null;
@@ -103,13 +114,24 @@ export function generateTitleViaWorker(payload: {
 export function analyzeStyleViaWorker(payload: {
   imageBase64: string;
   mimeType?: string;
+  mode?: "style" | "character" | "object";
 }) {
   return postToWorker<WorkerAnalyzeStyleResponse>("/analyze-style", payload, 90000);
+}
+
+export function analyzeConsistencyViaWorker(payload: {
+  imageBase64: string;
+  prompt?: string;
+  mimeType?: string;
+}) {
+  return postToWorker<WorkerConsistencyResponse>("/analyze-consistency", payload, 90000);
 }
 
 export function generateViaWorker(payload: {
   prompt?: string;
   style?: string | null;
+  characterReference?: string | null;
+  objectReference?: string | null;
   ratio?: string;
   resolution?: string;
   composition?: string | null;
@@ -118,6 +140,7 @@ export function generateViaWorker(payload: {
   mood?: string | null;
   palette?: string | null;
   cameraAngle?: string | null;
+  objectAngle?: string | null;
   lighting?: string | null;
   gesture?: string | null;
   propsPrompt?: string | null;

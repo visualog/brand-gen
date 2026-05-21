@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# BrandGen local app data
+/.brandgen/
+
 # production
 /build
 

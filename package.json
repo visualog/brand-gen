@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:next": "next dev -H 127.0.0.1",
+    "electron:dev": "node electron/dev.mjs",
+    "electron": "electron ./electron",
     "codex-worker": "node scripts/codex-worker.mjs",
     "build": "next build",
     "start": "next start",
@@ -23,6 +26,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^42.2.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "typescript": "^5"

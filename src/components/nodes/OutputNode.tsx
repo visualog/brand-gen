@@ -1,4 +1,4 @@
-import { Handle, Position, useEdges, useConnection } from '@xyflow/react';
+import { Handle, Position, useEdges, useConnection, useReactFlow } from '@xyflow/react';
 import React from 'react';
 import { Wand2, Play, Loader2, Sparkles } from 'lucide-react';
 
@@ -53,6 +53,7 @@ type OutputNodeData = {
 
 export function OutputNode({ data }: { data: OutputNodeData }) {
   const connection = useConnection();
+  const { getNode, setCenter } = useReactFlow();
   const isDragging = connection.inProgress; // 다른 노드에서 연결선을 드래그 중
 
   const {
@@ -72,6 +73,8 @@ export function OutputNode({ data }: { data: OutputNodeData }) {
 
   const isPromptConnected  = edges.some(e => e.target === id && e.source === 'prompt-node');
   const isStyleConnected   = edges.some(e => e.target === id && e.source === 'style-node');
+  const isCharacterReferenceConnected = edges.some(e => e.target === id && e.source === 'character-reference-node');
+  const isObjectReferenceConnected = edges.some(e => e.target === id && e.source === 'object-reference-node');
   const isRatioConnected   = edges.some(e => e.target === id && e.source === 'ratio-node');
   const isResConnected     = edges.some(e => e.target === id && e.source === 'resolution-node');
   const isCompositionConnected = edges.some(e => e.target === id && e.source === 'composition-node');
@@ -80,17 +83,20 @@ export function OutputNode({ data }: { data: OutputNodeData }) {
   const isMoodConnected = edges.some(e => e.target === id && e.source === 'mood-node');
   const isPaletteConnected = edges.some(e => e.target === id && e.source === 'palette-node');
   const isCameraAngleConnected = edges.some(e => e.target === id && e.source === 'camera-angle-node');
+  const isObjectAngleConnected = edges.some(e => e.target === id && e.source === 'object-angle-node');
   const isLightingConnected = edges.some(e => e.target === id && e.source === 'lighting-node');
   const isGestureConnected = edges.some(e => e.target === id && e.source === 'gesture-node');
   const isPropsConnected = edges.some(e => e.target === id && e.source === 'props-node');
   const isDetailConnected = edges.some(e => e.target === id && e.source === 'detail-node');
-  const isAnyConnected     = isPromptConnected || isStyleConnected || isRatioConnected || isResConnected || isCompositionConnected || isBackgroundConnected || isConstraintConnected || isMoodConnected || isPaletteConnected || isCameraAngleConnected || isLightingConnected || isGestureConnected || isPropsConnected || isDetailConnected;
+  const isAnyConnected     = isPromptConnected || isStyleConnected || isCharacterReferenceConnected || isObjectReferenceConnected || isRatioConnected || isResConnected || isCompositionConnected || isBackgroundConnected || isConstraintConnected || isMoodConnected || isPaletteConnected || isCameraAngleConnected || isObjectAngleConnected || isLightingConnected || isGestureConnected || isPropsConnected || isDetailConnected;
   const isCanvasConnected  = edges.some(e => e.source === id);
 
   const getMixedColor = () => {
     const colors = [];
     if (isPromptConnected) colors.push('var(--port-prompt)');
     if (isStyleConnected)  colors.push('var(--port-style)');
+    if (isCharacterReferenceConnected) colors.push('var(--port-character-reference)');
+    if (isObjectReferenceConnected) colors.push('var(--port-object-reference)');
     if (isRatioConnected)  colors.push('var(--port-ratio)');
     if (isResConnected)    colors.push('var(--port-resolution)');
     if (isCompositionConnected) colors.push('var(--port-composition)');
@@ -99,6 +105,7 @@ export function OutputNode({ data }: { data: OutputNodeData }) {
     if (isMoodConnected) colors.push('var(--port-mood)');
     if (isPaletteConnected) colors.push('var(--port-palette)');
     if (isCameraAngleConnected) colors.push('var(--port-camera-angle)');
+    if (isObjectAngleConnected) colors.push('var(--port-object-angle)');
     if (isLightingConnected) colors.push('var(--port-lighting)');
     if (isGestureConnected) colors.push('var(--port-gesture)');
     if (isPropsConnected) colors.push('var(--port-props)');
@@ -118,21 +125,36 @@ export function OutputNode({ data }: { data: OutputNodeData }) {
   const showOutputDot = isCanvasConnected;
 
   const connectedTags = [
-    isPromptConnected && { label: '설명', color: 'var(--port-prompt)' },
-    isStyleConnected  && { label: '스타일', color: 'var(--port-style)' },
-    isRatioConnected  && { label: '비율', color: 'var(--port-ratio)' },
-    isResConnected    && { label: '해상도', color: 'var(--port-resolution)' },
-    isCompositionConnected && { label: '구도', color: 'var(--port-composition)' },
-    isBackgroundConnected && { label: '배경', color: 'var(--port-background)' },
-    isConstraintConnected && { label: '제한', color: 'var(--port-constraint)' },
-    isMoodConnected && { label: '무드', color: 'var(--port-mood)' },
-    isPaletteConnected && { label: '팔레트', color: 'var(--port-palette)' },
-    isCameraAngleConnected && { label: '앵글', color: 'var(--port-camera-angle)' },
-    isLightingConnected && { label: '조명', color: 'var(--port-lighting)' },
-    isGestureConnected && { label: '제스처', color: 'var(--port-gesture)' },
-    isPropsConnected && { label: '소품', color: 'var(--port-props)' },
-    isDetailConnected && { label: '밀도', color: 'var(--port-detail)' },
-  ].filter(Boolean) as { label: string; color: string }[];
+    isPromptConnected && { label: '설명', color: 'var(--port-prompt)', nodeId: 'prompt-node' },
+    isStyleConnected  && { label: '스타일', color: 'var(--port-style)', nodeId: 'style-node' },
+    isCharacterReferenceConnected && { label: '캐릭터', color: 'var(--port-character-reference)', nodeId: 'character-reference-node' },
+    isObjectReferenceConnected && { label: '오브젝트', color: 'var(--port-object-reference)', nodeId: 'object-reference-node' },
+    isRatioConnected  && { label: '비율', color: 'var(--port-ratio)', nodeId: 'ratio-node' },
+    isResConnected    && { label: '해상도', color: 'var(--port-resolution)', nodeId: 'resolution-node' },
+    isCompositionConnected && { label: '구도', color: 'var(--port-composition)', nodeId: 'composition-node' },
+    isBackgroundConnected && { label: '배경', color: 'var(--port-background)', nodeId: 'background-node' },
+    isConstraintConnected && { label: '제한', color: 'var(--port-constraint)', nodeId: 'constraint-node' },
+    isMoodConnected && { label: '무드', color: 'var(--port-mood)', nodeId: 'mood-node' },
+    isPaletteConnected && { label: '팔레트', color: 'var(--port-palette)', nodeId: 'palette-node' },
+    isCameraAngleConnected && { label: '앵글', color: 'var(--port-camera-angle)', nodeId: 'camera-angle-node' },
+    isObjectAngleConnected && { label: '오브젝트 앵글', color: 'var(--port-object-angle)', nodeId: 'object-angle-node' },
+    isLightingConnected && { label: '조명', color: 'var(--port-lighting)', nodeId: 'lighting-node' },
+    isGestureConnected && { label: '제스처', color: 'var(--port-gesture)', nodeId: 'gesture-node' },
+    isPropsConnected && { label: '소품', color: 'var(--port-props)', nodeId: 'props-node' },
+    isDetailConnected && { label: '밀도', color: 'var(--port-detail)', nodeId: 'detail-node' },
+  ].filter(Boolean) as { label: string; color: string; nodeId: string }[];
+
+  const focusNode = (nodeId: string) => {
+    const node = getNode(nodeId);
+    if (!node) return;
+    const width = node.measured?.width ?? node.width ?? 260;
+    const height = node.measured?.height ?? node.height ?? 180;
+    void setCenter(
+      node.position.x + width / 2,
+      node.position.y + height / 2,
+      { zoom: 1, duration: 450 },
+    );
+  };
 
   const hasPrompt = isAnyConnected && !!englishPrompt;
 
@@ -220,8 +242,15 @@ export function OutputNode({ data }: { data: OutputNodeData }) {
         {connectedTags.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '4px' }}>
             {connectedTags.map(tag => (
-              <span
+              <button
                 key={tag.label}
+                type="button"
+                className="nodrag"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  focusNode(tag.nodeId);
+                }}
+                title={`${tag.label} 노드로 이동`}
                 style={{
                   fontSize: '10px',
                   fontWeight: 700,
@@ -232,10 +261,12 @@ export function OutputNode({ data }: { data: OutputNodeData }) {
                   border: `1px solid color-mix(in srgb, ${tag.color} 40%, transparent)`,
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase' as const,
+                  cursor: 'pointer',
+                  transition: 'transform 0.16s ease, background-color 0.16s ease',
                 }}
               >
                 {tag.label}
-              </span>
+              </button>
             ))}
           </div>
         )}

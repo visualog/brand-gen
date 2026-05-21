@@ -309,18 +309,21 @@ function runCodexExecForImageGeneration(prompt, timeoutMs = 240000) {
   });
 }
 
-async function buildPromptWithCodex({ userInput, style, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel }) {
+async function buildPromptWithCodex({ userInput, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel }) {
   const instruction = `
 ${BRAND_STYLE_CONTEXT}
 
 Input: "${userInput}"
 Style: ${style || "default"}
+Character Reference: ${characterReference || "default"}
+Object Reference: ${objectReference || "default"}
 Composition: ${composition || "default"}
 Background: ${background || "default"}
 Constraints: ${constraints || "default"}
 Mood: ${mood || "default"}
 Palette: ${palette || "default"}
 Camera Angle: ${cameraAngle || "default"}
+Object Angle: ${objectAngle || "default"}
 Lighting: ${lighting || "default"}
 Gesture: ${gesture || "default"}
 Props: ${propsPrompt || "default"}
@@ -345,6 +348,30 @@ IMPORTANT STYLE RULE:
     : `
 When no Style field is provided, you may apply the default BrandGen "Plus X" style direction.
 `
+  }
+
+${characterReference
+    ? `
+IMPORTANT CHARACTER CONSISTENCY RULE:
+- Treat Character Reference as a non-negotiable identity lock, not loose inspiration.
+- Preserve the same character appearance, outfit, proportions, distinctive features, and visual identity across generations.
+- New action, pose, camera angle, or composition may change, but identity-defining traits must not change.
+- Do not replace, redesign, age-change, gender-swap, restyle, or simplify away the described character.
+- If the user request conflicts with Character Reference, keep the reference identity and adapt only the pose or scene.
+`
+    : ""
+  }
+
+${objectReference
+    ? `
+IMPORTANT OBJECT CONSISTENCY RULE:
+- Treat Object Reference as a non-negotiable product/prop identity lock, not loose inspiration.
+- Preserve the same object silhouette, structure, color placement, material cues, and distinctive details across generations.
+- New action, pose, camera angle, or composition may change, but object-defining traits must not change.
+- Do not replace, redesign, recolor, simplify, or swap the object with a generic alternative.
+- If the user request conflicts with Object Reference, keep the reference object and adapt only the scene.
+`
+    : ""
   }
 
 ${composition
@@ -397,6 +424,17 @@ ${cameraAngle
 IMPORTANT CAMERA RULE:
 - Respect the Camera Angle field as the viewing perspective.
 - Keep the viewpoint readable and consistent with the chosen composition.
+`
+    : ""
+  }
+
+${objectAngle
+    ? `
+IMPORTANT OBJECT ANGLE RULE:
+- Treat the Object Angle field as mandatory subject orientation.
+- Include the object orientation directly in enhancedPrompt using plain visual language.
+- Rotate the subject or product itself, not the camera viewpoint.
+- Do not default back to a front-facing object when Object Angle requests side or rear orientation.
 `
     : ""
   }
@@ -454,10 +492,17 @@ All returned string values must be written in natural English.
   return JSON.parse(cleaned);
 }
 
-async function analyzeStyleWithCodex(imagePath) {
+async function analyzeStyleWithCodex(imagePath, mode = "style") {
+  const focus =
+    mode === "character"
+      ? "Focus on stable character identity: apparent age range, body proportions, hair, face-defining features, outfit, accessories, pose-independent traits, and what must stay consistent."
+      : mode === "object"
+        ? "Focus on stable object identity: silhouette, structure, color placement, material, proportions, markings, and distinctive details that must stay consistent."
+        : "Focus on drawing technique, palette, texture, mood, and composition.";
   const instruction = `
-Analyze the attached image and return only one short English style prompt for image generation.
-Focus on drawing technique, palette, texture, mood, and composition.
+Analyze the attached image and return only one short English ${mode} reference prompt for image generation.
+${focus}
+Write it as a fixed consistency reference that can be reused in future prompts.
 No JSON. No bullets. No explanation.
 `.trim();
 
@@ -467,6 +512,51 @@ No JSON. No bullets. No explanation.
   });
 
   return raw.replace(/\*\*/g, "").replace(/\*/g, "").replace(/\n+/g, " ").trim();
+}
+
+async function analyzeConsistencyWithCodex(imagePath, prompt = "") {
+  const instruction = `
+Analyze the generated image and extract reusable consistency elements for future image generation.
+
+Original prompt:
+${prompt || "not provided"}
+
+Return ONLY a valid JSON object with this exact structure:
+{
+  "character": "stable character identity details that should stay consistent, or empty string if no character",
+  "object": "stable object/product/prop identity details that should stay consistent, or empty string if no object",
+  "style": "stable visual style, rendering, linework, color, texture, and mood details",
+  "composition": "stable framing, scale, spacing, camera/object angle, and layout details",
+  "rules": ["short rule that preserves consistency", "short rule that avoids unwanted drift"]
+}
+
+Rules:
+- Use natural English for every value.
+- Focus on reusable, concrete visual details only.
+- Write character and object values as strict identity locks, not style suggestions.
+- Include exact visible traits: silhouette, proportions, colors, outfit/material placement, accessories, and distinctive details.
+- Include one anti-drift rule for what must not change in future generations.
+- Do not invent details that are not visible.
+- Keep each field concise but specific, usually 1-2 dense sentences per field.
+- No markdown. No explanation.
+`.trim();
+
+  const raw = await runCodexExec(instruction, {
+    timeoutMs: 60000,
+    imagePaths: [imagePath],
+  });
+  const cleaned = stripCodeFences(raw);
+  const parsed = JSON.parse(cleaned);
+
+  return {
+    character: typeof parsed.character === "string" ? parsed.character.replace(/\s+/g, " ").trim() : "",
+    object: typeof parsed.object === "string" ? parsed.object.replace(/\s+/g, " ").trim() : "",
+    style: typeof parsed.style === "string" ? parsed.style.replace(/\s+/g, " ").trim() : "",
+    composition: typeof parsed.composition === "string" ? parsed.composition.replace(/\s+/g, " ").trim() : "",
+    rules: Array.isArray(parsed.rules)
+      ? parsed.rules.filter((rule) => typeof rule === "string").map((rule) => rule.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 6)
+      : [],
+  };
 }
 
 async function translatePromptToKorean(englishPrompt) {
@@ -544,14 +634,26 @@ ${source}
   };
 }
 
-async function generateImageWithCodex({ prompt, style, ratio = "1:1", resolution = "HD", composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt }) {
+async function generateImageWithCodex({ prompt, style, characterReference, objectReference, ratio = "1:1", resolution = "HD", composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt }) {
   const { width, height } = getPixelSize(resolution, ratio);
   let promptBody = prebuiltPrompt?.trim() || "";
+
+  if (promptBody && objectAngle) {
+    promptBody = `${promptBody}, ${objectAngle}`;
+  }
+  if (promptBody && characterReference) {
+    promptBody = `${promptBody}, CONSISTENCY LOCK - character identity must match exactly: ${characterReference}`;
+  }
+  if (promptBody && objectReference) {
+    promptBody = `${promptBody}, CONSISTENCY LOCK - object identity must match exactly: ${objectReference}`;
+  }
 
   if (!promptBody) {
     const buildResult = await buildPromptWithCodex({
       userInput: prompt || style || "",
       style,
+      characterReference,
+      objectReference,
       ratio,
       resolution,
       composition,
@@ -560,6 +662,7 @@ async function generateImageWithCodex({ prompt, style, ratio = "1:1", resolution
       mood,
       palette,
       cameraAngle,
+      objectAngle,
       lighting,
       gesture,
       propsPrompt,
@@ -601,6 +704,8 @@ REQUIREMENTS:
 - aspect ratio: ${ratio}
 - target size: ${width}x${height}
 - no text, watermark, or logo
+- if a CONSISTENCY LOCK is present, preserve those identity details over pose, scene, or composition variation
+- do not redesign, simplify, recolor, swap, or reinterpret locked character/object identity details
 - return the generated image as the normal Codex image-generation result
 `.trim();
 
@@ -648,8 +753,8 @@ function writeJson(res, status, payload) {
 }
 
 async function handleTranslate(payload) {
-  const { prompt, style, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel } = payload;
-  if (!prompt && !style && !ratio && !resolution && !composition && !background && !constraints && !mood && !palette && !cameraAngle && !lighting && !gesture && !propsPrompt && !detailLevel) {
+  const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel } = payload;
+  if (!prompt && !style && !characterReference && !objectReference && !ratio && !resolution && !composition && !background && !constraints && !mood && !palette && !cameraAngle && !objectAngle && !lighting && !gesture && !propsPrompt && !detailLevel) {
     return { englishPrompt: "" };
   }
 
@@ -658,6 +763,8 @@ async function handleTranslate(payload) {
     const result = await buildPromptWithCodex({
       userInput: prompt,
       style,
+      characterReference,
+      objectReference,
       ratio,
       resolution,
       composition,
@@ -666,6 +773,7 @@ async function handleTranslate(payload) {
       mood,
       palette,
       cameraAngle,
+      objectAngle,
       lighting,
       gesture,
       propsPrompt,
@@ -675,11 +783,14 @@ async function handleTranslate(payload) {
     if (result.technicalTags?.length) parts.push(result.technicalTags.join(", "));
   }
   if (!prompt && composition) parts.push(composition);
+  if (characterReference) parts.push(`fixed character reference: ${characterReference}`);
+  if (objectReference) parts.push(`fixed object reference: ${objectReference}`);
   if (!prompt && background) parts.push(background);
   if (!prompt && constraints) parts.push(constraints);
   if (!prompt && mood) parts.push(mood);
   if (!prompt && palette) parts.push(palette);
   if (!prompt && cameraAngle) parts.push(cameraAngle);
+  if (!prompt && objectAngle) parts.push(objectAngle);
   if (!prompt && lighting) parts.push(lighting);
   if (!prompt && gesture) parts.push(gesture);
   if (!prompt && propsPrompt) parts.push(propsPrompt);
@@ -717,7 +828,7 @@ async function handleGenerateTitle(payload) {
 async function handleAnalyzeStyle(payload) {
   let tmpFile = null;
   try {
-    const { imageBase64, mimeType = "image/jpeg" } = payload;
+    const { imageBase64, mimeType = "image/jpeg", mode = "style" } = payload;
     if (!imageBase64) {
       throw new Error("이미지가 필요합니다.");
     }
@@ -725,7 +836,26 @@ async function handleAnalyzeStyle(payload) {
     tmpFile = path.join(os.tmpdir(), `brandgen-style-${Date.now()}.${ext}`);
     const buffer = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
     fs.writeFileSync(tmpFile, buffer);
-    return { suggestedPrompt: await analyzeStyleWithCodex(tmpFile) };
+    return { suggestedPrompt: await analyzeStyleWithCodex(tmpFile, mode) };
+  } finally {
+    if (tmpFile) {
+      try { fs.unlinkSync(tmpFile); } catch {}
+    }
+  }
+}
+
+async function handleAnalyzeConsistency(payload) {
+  let tmpFile = null;
+  try {
+    const { imageBase64, prompt = "", mimeType = "image/jpeg" } = payload;
+    if (!imageBase64) {
+      throw new Error("이미지가 필요합니다.");
+    }
+    const ext = mimeType.split("/")[1]?.split(";")[0] || "jpg";
+    tmpFile = path.join(os.tmpdir(), `brandgen-consistency-${Date.now()}.${ext}`);
+    const buffer = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
+    fs.writeFileSync(tmpFile, buffer);
+    return await analyzeConsistencyWithCodex(tmpFile, prompt);
   } finally {
     if (tmpFile) {
       try { fs.unlinkSync(tmpFile); } catch {}
@@ -734,11 +864,11 @@ async function handleAnalyzeStyle(payload) {
 }
 
 async function handleGenerate(payload) {
-  const { prompt, style, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt } = payload;
+  const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt } = payload;
   if (!prompt && !style && !prebuiltPrompt) {
     throw new Error("프롬프트 또는 스타일이 필요합니다.");
   }
-  return generateImageWithCodex({ prompt, style, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt });
+  return generateImageWithCodex({ prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -755,6 +885,7 @@ const server = http.createServer(async (req, res) => {
       if (req.url === "/translate-korean") return handleTranslateKorean(payload);
       if (req.url === "/generate-title") return handleGenerateTitle(payload);
       if (req.url === "/analyze-style") return handleAnalyzeStyle(payload);
+      if (req.url === "/analyze-consistency") return handleAnalyzeConsistency(payload);
       if (req.url === "/generate") return handleGenerate(payload);
       throw new Error("Not Found");
     });

@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
     const {
       prompt,
       style,
+      characterReference,
+      objectReference,
       ratio = "1:1",
       resolution = "HD",
       composition,
@@ -16,6 +18,7 @@ export async function POST(req: NextRequest) {
       mood,
       palette,
       cameraAngle,
+      objectAngle,
       lighting,
       gesture,
       propsPrompt,
@@ -30,6 +33,8 @@ export async function POST(req: NextRequest) {
     const result = await generateViaWorker({
       prompt,
       style,
+      characterReference,
+      objectReference,
       ratio,
       resolution,
       composition,
@@ -38,6 +43,7 @@ export async function POST(req: NextRequest) {
       mood,
       palette,
       cameraAngle,
+      objectAngle,
       lighting,
       gesture,
       propsPrompt,

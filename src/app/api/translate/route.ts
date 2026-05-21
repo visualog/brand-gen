@@ -5,14 +5,14 @@ import { translateViaWorker } from "@/lib/codex-worker-client";
 
 export async function POST(req: Request) {
   try {
-    const { prompt, style, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel } = await req.json();
+    const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel } = await req.json();
 
     // 아무것도 연결되지 않은 경우 빈 응답
-    if (!prompt && !style && !ratio && !resolution && !composition && !background && !constraints && !mood && !palette && !cameraAngle && !lighting && !gesture && !propsPrompt && !detailLevel) {
+    if (!prompt && !style && !characterReference && !objectReference && !ratio && !resolution && !composition && !background && !constraints && !mood && !palette && !cameraAngle && !objectAngle && !lighting && !gesture && !propsPrompt && !detailLevel) {
       return NextResponse.json({ englishPrompt: "" });
     }
 
-    const data = await translateViaWorker({ prompt, style, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, lighting, gesture, propsPrompt, detailLevel });
+    const data = await translateViaWorker({ prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel });
     return NextResponse.json(data);
   } catch (error: unknown) {
     console.error("Translate error:", error);

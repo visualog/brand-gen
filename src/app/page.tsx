@@ -15,6 +15,7 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -30,6 +31,7 @@ import {
 
 import { PromptNode } from "@/components/nodes/PromptNode";
 import { StyleNode } from "@/components/nodes/StyleNode";
+import { ReferenceNode } from "@/components/nodes/ReferenceNode";
 import { RatioNode } from "@/components/nodes/RatioNode";
 import { ResolutionNode } from "@/components/nodes/ResolutionNode";
 import { CompositionNode } from "@/components/nodes/CompositionNode";
@@ -38,6 +40,7 @@ import { ConstraintNode } from "@/components/nodes/ConstraintNode";
 import { MoodNode } from "@/components/nodes/MoodNode";
 import { PaletteNode } from "@/components/nodes/PaletteNode";
 import { CameraAngleNode } from "@/components/nodes/CameraAngleNode";
+import { ObjectAngleNode } from "@/components/nodes/ObjectAngleNode";
 import { LightingNode } from "@/components/nodes/LightingNode";
 import { GestureNode } from "@/components/nodes/GestureNode";
 import { PropsNode } from "@/components/nodes/PropsNode";
@@ -60,12 +63,32 @@ const OPTIONAL_NODE_CONFIG = {
     edgeId: "e-composition-output",
     color: "var(--port-composition)",
   },
+  characterReference: {
+    id: "character-reference-node",
+    type: "referenceNode",
+    label: "캐릭터 참조",
+    description: "같은 캐릭터 외형, 의상, 비율을 반복 생성에 고정합니다.",
+    position: { x: 300, y: 850 },
+    sourceHandle: "character-reference-out",
+    edgeId: "e-character-reference-output",
+    color: "var(--port-character-reference)",
+  },
+  objectReference: {
+    id: "object-reference-node",
+    type: "referenceNode",
+    label: "오브젝트 참조",
+    description: "제품, 자전거, 소품 같은 반복 오브젝트 형태를 고정합니다.",
+    position: { x: 550, y: 850 },
+    sourceHandle: "object-reference-out",
+    edgeId: "e-object-reference-output",
+    color: "var(--port-object-reference)",
+  },
   background: {
     id: "background-node",
     type: "backgroundNode",
     label: "배경",
     description: "배경 밀도와 환경 분위기를 제어합니다.",
-    position: { x: 300, y: 850 },
+    position: { x: 800, y: 850 },
     sourceHandle: "background-out",
     edgeId: "e-background-output",
     color: "var(--port-background)",
@@ -75,7 +98,7 @@ const OPTIONAL_NODE_CONFIG = {
     type: "constraintNode",
     label: "제한사항",
     description: "텍스트, 로고, 인원 수 같은 금지 조건을 고정합니다.",
-    position: { x: 550, y: 850 },
+    position: { x: 1050, y: 850 },
     sourceHandle: "constraint-out",
     edgeId: "e-constraint-output",
     color: "var(--port-constraint)",
@@ -85,7 +108,7 @@ const OPTIONAL_NODE_CONFIG = {
     type: "moodNode",
     label: "무드",
     description: "장면의 감정 톤과 에너지 레벨을 제어합니다.",
-    position: { x: 800, y: 850 },
+    position: { x: 1300, y: 850 },
     sourceHandle: "mood-out",
     edgeId: "e-mood-output",
     color: "var(--port-mood)",
@@ -95,7 +118,7 @@ const OPTIONAL_NODE_CONFIG = {
     type: "paletteNode",
     label: "색상 팔레트",
     description: "색 사용 규칙과 톤 방향을 분리해서 제어합니다.",
-    position: { x: 1050, y: 850 },
+    position: { x: 1550, y: 850 },
     sourceHandle: "palette-out",
     edgeId: "e-palette-output",
     color: "var(--port-palette)",
@@ -105,17 +128,27 @@ const OPTIONAL_NODE_CONFIG = {
     type: "cameraAngleNode",
     label: "카메라 앵글",
     description: "정면, 측면, 로우, 탑뷰 같은 시점 방향을 제어합니다.",
-    position: { x: 1300, y: 850 },
+    position: { x: 1800, y: 850 },
     sourceHandle: "camera-angle-out",
     edgeId: "e-camera-angle-output",
     color: "var(--port-camera-angle)",
+  },
+  objectAngle: {
+    id: "object-angle-node",
+    type: "objectAngleNode",
+    label: "오브젝트 앵글",
+    description: "피사체 자체의 좌우/상하 회전 방향을 구 컨트롤로 조절합니다.",
+    position: { x: 2050, y: 850 },
+    sourceHandle: "object-angle-out",
+    edgeId: "e-object-angle-output",
+    color: "var(--port-object-angle)",
   },
   lighting: {
     id: "lighting-node",
     type: "lightingNode",
     label: "조명",
     description: "장면의 빛 방향과 광질을 분리해서 제어합니다.",
-    position: { x: 1550, y: 850 },
+    position: { x: 2300, y: 850 },
     sourceHandle: "lighting-out",
     edgeId: "e-lighting-output",
     color: "var(--port-lighting)",
@@ -125,7 +158,7 @@ const OPTIONAL_NODE_CONFIG = {
     type: "gestureNode",
     label: "표정/제스처",
     description: "표정과 몸의 에너지, 동작감을 강화합니다.",
-    position: { x: 1800, y: 850 },
+    position: { x: 2550, y: 850 },
     sourceHandle: "gesture-out",
     edgeId: "e-gesture-output",
     color: "var(--port-gesture)",
@@ -135,7 +168,7 @@ const OPTIONAL_NODE_CONFIG = {
     type: "propsNode",
     label: "소품",
     description: "핵심 소품을 설명과 분리해서 안정적으로 고정합니다.",
-    position: { x: 2050, y: 850 },
+    position: { x: 2800, y: 850 },
     sourceHandle: "props-out",
     edgeId: "e-props-output",
     color: "var(--port-props)",
@@ -145,7 +178,7 @@ const OPTIONAL_NODE_CONFIG = {
     type: "detailNode",
     label: "출력 밀도",
     description: "얼마나 단순하거나 정교하게 그릴지 제어합니다.",
-    position: { x: 2300, y: 850 },
+    position: { x: 3050, y: 850 },
     sourceHandle: "detail-out",
     edgeId: "e-detail-output",
     color: "var(--port-detail)",
@@ -154,11 +187,24 @@ const OPTIONAL_NODE_CONFIG = {
 
 type OptionalNodeKey = keyof typeof OPTIONAL_NODE_CONFIG;
 type ViewMode = "gallery" | "editor";
+type NodePositionMap = Record<string, { x: number; y: number }>;
+type ConsistencyElements = {
+  character: string;
+  object: string;
+  style: string;
+  composition: string;
+  rules: string[];
+};
+type ConsistencyStatus = "pending" | "ready" | "failed";
 
 type EditorSnapshot = {
   prompt: string;
   styles: StyleEntry[];
   activeStyleId: string | null;
+  characterReferences: StyleEntry[];
+  activeCharacterReferenceId: string | null;
+  objectReferences: StyleEntry[];
+  activeObjectReferenceId: string | null;
   ratio: string;
   resolution: string;
   composition: string;
@@ -167,6 +213,7 @@ type EditorSnapshot = {
   mood: string;
   palette: string;
   cameraAngle: string;
+  objectAngle: string;
   lighting: string;
   gesture: string;
   propsPrompt: string;
@@ -176,12 +223,21 @@ type EditorSnapshot = {
   imageUrl: string | null;
   visibleOptionalNodes: OptionalNodeKey[];
   connectedOptionalNodes: OptionalNodeKey[];
+  nodePositions?: NodePositionMap;
 };
 
 type GeneratedResult = EditorSnapshot & {
   id: string;
   title: string;
   createdAt: string;
+  consistency?: ConsistencyElements;
+  consistencyStatus?: ConsistencyStatus;
+};
+
+type PersistedState = {
+  theme?: "light" | "dark";
+  generatedResults?: GeneratedResult[];
+  draft?: EditorSnapshot;
 };
 
 type FlowNode = Node<Record<string, unknown>, string>;
@@ -191,8 +247,10 @@ type NodeRect = { x: number; y: number; width: number; height: number };
 const NODE_SIZE_BY_TYPE: Record<string, { width: number; height: number }> = {
   promptNode: { width: 320, height: 240 },
   styleNode: { width: 320, height: 250 },
+  referenceNode: { width: 280, height: 260 },
   ratioNode: { width: 220, height: 140 },
   resolutionNode: { width: 220, height: 140 },
+  objectAngleNode: { width: 260, height: 290 },
   outputNode: { width: 380, height: 320 },
   canvasNode: { width: 380, height: 320 },
   default: { width: 220, height: 170 },
@@ -289,6 +347,10 @@ const DEFAULT_SNAPSHOT: EditorSnapshot = {
   prompt: "",
   styles: [],
   activeStyleId: null,
+  characterReferences: [],
+  activeCharacterReferenceId: null,
+  objectReferences: [],
+  activeObjectReferenceId: null,
   ratio: "1:1",
   resolution: "HD",
   composition: "full-body composition with visible limbs and clear silhouette",
@@ -297,6 +359,7 @@ const DEFAULT_SNAPSHOT: EditorSnapshot = {
   mood: "refined and premium mood with polished restraint",
   palette: "soft muted pastel palette with low saturation and gentle warmth",
   cameraAngle: "front-facing camera angle with direct clear presentation",
+  objectAngle: "object facing forward with neutral object rotation",
   lighting: "soft diffused lighting with gentle even illumination",
   gesture: "hurried gesture with swinging arms and strong forward momentum",
   propsPrompt: "include a stack of documents or loose papers as the main prop",
@@ -306,6 +369,7 @@ const DEFAULT_SNAPSHOT: EditorSnapshot = {
   imageUrl: null,
   visibleOptionalNodes: [],
   connectedOptionalNodes: [],
+  nodePositions: {},
 };
 
 const MANDATORY_EDGES = [
@@ -371,6 +435,22 @@ function buildEditorNodes(optionalKeys: OptionalNodeKey[], includeCanvas: boolea
     : [...baseNodes, ...optionalNodes];
 }
 
+function getNodePositions(nodes: FlowNode[]): NodePositionMap {
+  return nodes.reduce<NodePositionMap>((positions, node) => {
+    positions[node.id] = { x: node.position.x, y: node.position.y };
+    return positions;
+  }, {});
+}
+
+function applyNodePositions(nodes: FlowNode[], positions?: NodePositionMap): FlowNode[] {
+  if (!positions) return nodes;
+
+  return nodes.map((node) => {
+    const position = positions[node.id];
+    return position ? { ...node, position } : node;
+  });
+}
+
 function buildEditorEdges(connectedOptionalKeys: OptionalNodeKey[], includeCanvas: boolean): FlowEdge[] {
   const optionalEdges: FlowEdge[] = connectedOptionalKeys.map((key) => {
     const config = OPTIONAL_NODE_CONFIG[key];
@@ -395,7 +475,7 @@ function buildEditorEdges(connectedOptionalKeys: OptionalNodeKey[], includeCanva
           target: "canvas-node",
           targetHandle: "canvas-in",
           style: { stroke: "var(--text-primary)", strokeWidth: 3 },
-          animated: true,
+          animated: false,
         },
       ]
     : [...MANDATORY_EDGES, ...optionalEdges];
@@ -452,6 +532,109 @@ function getPreviewKoreanPrompt(activeResult: GeneratedResult | null, koreanProm
   return activeResult?.koreanPrompt ?? koreanPrompt ?? "";
 }
 
+function emptyConsistency(): ConsistencyElements {
+  return {
+    character: "",
+    object: "",
+    style: "",
+    composition: "",
+    rules: [],
+  };
+}
+
+function createReferenceEntryFromConsistency(kind: "character" | "object" | "style", prompt: string, imageUrl: string): StyleEntry {
+  const labelPrefix = kind === "character" ? "캐릭터" : kind === "object" ? "오브젝트" : "스타일";
+  return {
+    id: `${kind}-consistency-${Date.now()}`,
+    imageUrl,
+    prompt,
+    label: `${labelPrefix} 앨리먼트`,
+  };
+}
+
+function appendObjectAnglePrompt(englishPrompt: string, objectAngle: string | null | undefined) {
+  const nextObjectAngle = objectAngle?.trim();
+  if (!nextObjectAngle || nextObjectAngle === DEFAULT_SNAPSHOT.objectAngle) return englishPrompt;
+  if (englishPrompt.includes(nextObjectAngle)) return englishPrompt;
+  if (englishPrompt.includes("mandatory object orientation")) return englishPrompt;
+
+  return [englishPrompt.trim(), nextObjectAngle].filter(Boolean).join(", ");
+}
+
+function appendConsistencyReferences(
+  englishPrompt: string,
+  characterReference: string | null | undefined,
+  objectReference: string | null | undefined,
+) {
+  const parts = [englishPrompt.trim()].filter(Boolean);
+  const nextCharacterReference = characterReference?.trim();
+  const nextObjectReference = objectReference?.trim();
+
+  if (nextCharacterReference && !englishPrompt.includes(nextCharacterReference)) {
+    parts.push(`fixed character reference: ${nextCharacterReference}`);
+  }
+  if (nextObjectReference && !englishPrompt.includes(nextObjectReference)) {
+    parts.push(`fixed object reference: ${nextObjectReference}`);
+  }
+
+  return parts.join(", ");
+}
+
+function mergeGeneratedResults(
+  localResults: GeneratedResult[] = [],
+  fileResults: GeneratedResult[] = [],
+) {
+  const merged = new Map<string, GeneratedResult>();
+  for (const result of [...fileResults, ...localResults]) {
+    if (result?.id) merged.set(result.id, result);
+  }
+  return [...merged.values()].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
+
+function readLocalPersistedState(): PersistedState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as PersistedState;
+    return {
+      theme: parsed.theme,
+      generatedResults: Array.isArray(parsed.generatedResults) ? parsed.generatedResults : [],
+      draft: parsed.draft,
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function readFilePersistedState(): Promise<PersistedState> {
+  try {
+    const res = await fetch("/api/gallery", { cache: "no-store" });
+    if (!res.ok) return {};
+    const parsed = (await res.json()) as PersistedState;
+    return {
+      theme: parsed.theme,
+      generatedResults: Array.isArray(parsed.generatedResults) ? parsed.generatedResults : [],
+      draft: parsed.draft,
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function writeFilePersistedState(payload: PersistedState) {
+  try {
+    await fetch("/api/gallery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Keep the UI responsive even if the local file DB is temporarily unavailable.
+  }
+}
+
 export default function Home() {
   return (
     <ReactFlowProvider>
@@ -476,6 +659,10 @@ function FlowContent() {
   const [prompt, setPrompt] = useState(DEFAULT_SNAPSHOT.prompt);
   const [styles, setStyles] = useState<StyleEntry[]>(DEFAULT_SNAPSHOT.styles);
   const [activeStyleId, setActiveStyleId] = useState<string | null>(DEFAULT_SNAPSHOT.activeStyleId);
+  const [characterReferences, setCharacterReferences] = useState<StyleEntry[]>(DEFAULT_SNAPSHOT.characterReferences);
+  const [activeCharacterReferenceId, setActiveCharacterReferenceId] = useState<string | null>(DEFAULT_SNAPSHOT.activeCharacterReferenceId);
+  const [objectReferences, setObjectReferences] = useState<StyleEntry[]>(DEFAULT_SNAPSHOT.objectReferences);
+  const [activeObjectReferenceId, setActiveObjectReferenceId] = useState<string | null>(DEFAULT_SNAPSHOT.activeObjectReferenceId);
   const [ratio, setRatio] = useState(DEFAULT_SNAPSHOT.ratio);
   const [resolution, setResolution] = useState(DEFAULT_SNAPSHOT.resolution);
   const [composition, setComposition] = useState(DEFAULT_SNAPSHOT.composition);
@@ -484,6 +671,7 @@ function FlowContent() {
   const [mood, setMood] = useState(DEFAULT_SNAPSHOT.mood);
   const [palette, setPalette] = useState(DEFAULT_SNAPSHOT.palette);
   const [cameraAngle, setCameraAngle] = useState(DEFAULT_SNAPSHOT.cameraAngle);
+  const [objectAngle, setObjectAngle] = useState(DEFAULT_SNAPSHOT.objectAngle);
   const [lighting, setLighting] = useState(DEFAULT_SNAPSHOT.lighting);
   const [gesture, setGesture] = useState(DEFAULT_SNAPSHOT.gesture);
   const [propsPrompt, setPropsPrompt] = useState(DEFAULT_SNAPSHOT.propsPrompt);
@@ -507,11 +695,20 @@ function FlowContent() {
   );
   const translateStartedAtRef = useRef<number | null>(null);
   const generateStartedAtRef = useRef<number | null>(null);
+  const nodesRef = useRef<FlowNode[]>(nodes);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const applySnapshotToEditor = useCallback((snapshot: EditorSnapshot) => {
     setPrompt(snapshot.prompt);
     setStyles(snapshot.styles);
     setActiveStyleId(snapshot.activeStyleId);
+    setCharacterReferences(snapshot.characterReferences ?? []);
+    setActiveCharacterReferenceId(snapshot.activeCharacterReferenceId ?? null);
+    setObjectReferences(snapshot.objectReferences ?? []);
+    setActiveObjectReferenceId(snapshot.activeObjectReferenceId ?? null);
     setRatio(snapshot.ratio);
     setResolution(snapshot.resolution);
     setComposition(snapshot.composition);
@@ -520,6 +717,7 @@ function FlowContent() {
     setMood(snapshot.mood);
     setPalette(snapshot.palette);
     setCameraAngle(snapshot.cameraAngle);
+    setObjectAngle(snapshot.objectAngle ?? DEFAULT_SNAPSHOT.objectAngle);
     setLighting(snapshot.lighting);
     setGesture(snapshot.gesture);
     setPropsPrompt(snapshot.propsPrompt);
@@ -528,7 +726,12 @@ function FlowContent() {
     setKoreanPrompt(snapshot.koreanPrompt);
     setImageUrl(snapshot.imageUrl);
     setError(false);
-    setNodes(buildEditorNodes(snapshot.visibleOptionalNodes, Boolean(snapshot.imageUrl)));
+    setNodes(
+      applyNodePositions(
+        buildEditorNodes(snapshot.visibleOptionalNodes, Boolean(snapshot.imageUrl)),
+        snapshot.nodePositions,
+      ),
+    );
     setEdges(buildEditorEdges(snapshot.connectedOptionalNodes, Boolean(snapshot.imageUrl)));
   }, []);
 
@@ -548,6 +751,10 @@ function FlowContent() {
         prompt,
         styles,
         activeStyleId,
+        characterReferences,
+        activeCharacterReferenceId,
+        objectReferences,
+        activeObjectReferenceId,
         ratio,
         resolution,
         composition,
@@ -556,6 +763,7 @@ function FlowContent() {
         mood,
         palette,
         cameraAngle,
+        objectAngle,
         lighting,
         gesture,
         propsPrompt,
@@ -565,12 +773,17 @@ function FlowContent() {
         imageUrl: nextImageUrl === undefined ? imageUrl : nextImageUrl,
         visibleOptionalNodes,
         connectedOptionalNodes,
+        nodePositions: getNodePositions(nodes),
       };
     },
     [
       prompt,
       styles,
       activeStyleId,
+      characterReferences,
+      activeCharacterReferenceId,
+      objectReferences,
+      activeObjectReferenceId,
       ratio,
       resolution,
       composition,
@@ -579,6 +792,7 @@ function FlowContent() {
       mood,
       palette,
       cameraAngle,
+      objectAngle,
       lighting,
       gesture,
       propsPrompt,
@@ -593,21 +807,21 @@ function FlowContent() {
 
   useEffect(() => {
     let cancelled = false;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        hasLoadedRef.current = true;
-        return () => {
-          cancelled = true;
-        };
-      }
 
-      const saved = JSON.parse(raw) as {
-        theme?: "light" | "dark";
-        generatedResults?: GeneratedResult[];
-        draft?: EditorSnapshot;
+    async function loadPersistedState() {
+      const localState = readLocalPersistedState();
+      const fileState = await readFilePersistedState();
+      const mergedResults = mergeGeneratedResults(
+        localState.generatedResults,
+        fileState.generatedResults,
+      );
+      const saved: PersistedState = {
+        theme: localState.theme || fileState.theme,
+        generatedResults: mergedResults,
+        draft: localState.draft || fileState.draft,
       };
 
+      if (cancelled) return;
       queueMicrotask(() => {
         if (cancelled) return;
         if (saved.theme) setTheme(saved.theme);
@@ -615,10 +829,17 @@ function FlowContent() {
         if (saved.draft) applySnapshotToEditor(saved.draft);
         hasLoadedRef.current = true;
       });
-    } catch {
-      // ignore malformed storage
-      hasLoadedRef.current = true;
+
+      const localCount = localState.generatedResults?.length ?? 0;
+      const fileCount = fileState.generatedResults?.length ?? 0;
+      if (mergedResults.length > fileCount || localCount > 0) {
+        await writeFilePersistedState(saved);
+      }
     }
+
+    void loadPersistedState().catch(() => {
+      if (!cancelled) hasLoadedRef.current = true;
+    });
 
     return () => {
       cancelled = true;
@@ -627,16 +848,21 @@ function FlowContent() {
 
   useEffect(() => {
     if (!hasLoadedRef.current) return;
-    try {
-      const payload = {
-        theme,
-        generatedResults,
-        draft: captureCurrentSnapshot(),
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // ignore storage failures
-    }
+    const timeoutId = window.setTimeout(() => {
+      try {
+        const payload = {
+          theme,
+          generatedResults,
+          draft: captureCurrentSnapshot(),
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        void writeFilePersistedState(payload);
+      } catch {
+        // ignore storage failures
+      }
+    }, 800);
+
+    return () => window.clearTimeout(timeoutId);
   }, [theme, generatedResults, captureCurrentSnapshot]);
 
   useEffect(() => {
@@ -704,7 +930,21 @@ function FlowContent() {
     [connectedState],
   );
 
-  const visibleEnglishPrompt = hasAnyConnection ? englishPrompt : "";
+  const activeCharacterReferencePrompt = useMemo(
+    () => characterReferences.find((entry) => entry.id === activeCharacterReferenceId)?.prompt || "",
+    [characterReferences, activeCharacterReferenceId],
+  );
+  const activeObjectReferencePrompt = useMemo(
+    () => objectReferences.find((entry) => entry.id === activeObjectReferenceId)?.prompt || "",
+    [objectReferences, activeObjectReferenceId],
+  );
+  const visibleEnglishPrompt = hasAnyConnection
+    ? appendConsistencyReferences(
+        appendObjectAnglePrompt(englishPrompt, connectedState.objectAngle ? objectAngle : null),
+        connectedState.characterReference ? activeCharacterReferencePrompt : null,
+        connectedState.objectReference ? activeObjectReferencePrompt : null,
+      )
+    : "";
   const visibleKoreanPrompt = hasAnyConnection ? koreanPrompt : "";
 
   const requestKoreanPromptInBackground = useCallback(
@@ -763,6 +1003,50 @@ function FlowContent() {
     [],
   );
 
+  const requestConsistencyInBackground = useCallback(
+    async (resultId: string, nextImageUrl: string, nextPrompt: string) => {
+      if (!nextImageUrl.trim()) return;
+
+      setGeneratedResults((prev) =>
+        prev.map((result) =>
+          result.id === resultId ? { ...result, consistencyStatus: "pending" } : result,
+        ),
+      );
+
+      try {
+        const res = await fetch("/api/analyze-consistency", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: nextImageUrl, prompt: nextPrompt }),
+        });
+        const data = (await res.json()) as Partial<ConsistencyElements> & { error?: string };
+        if (!res.ok) throw new Error(data.error || "일관성 앨리먼트 분석 실패");
+
+        const consistency: ConsistencyElements = {
+          character: typeof data.character === "string" ? data.character.trim() : "",
+          object: typeof data.object === "string" ? data.object.trim() : "",
+          style: typeof data.style === "string" ? data.style.trim() : "",
+          composition: typeof data.composition === "string" ? data.composition.trim() : "",
+          rules: Array.isArray(data.rules) ? data.rules.filter((rule): rule is string => typeof rule === "string") : [],
+        };
+
+        setGeneratedResults((prev) =>
+          prev.map((result) =>
+            result.id === resultId ? { ...result, consistency, consistencyStatus: "ready" } : result,
+          ),
+        );
+      } catch (error) {
+        console.error(error);
+        setGeneratedResults((prev) =>
+          prev.map((result) =>
+            result.id === resultId ? { ...result, consistencyStatus: "failed" } : result,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!hasAnyConnection) return;
 
@@ -777,6 +1061,8 @@ function FlowContent() {
           body: JSON.stringify({
             prompt: connectedState.isPromptConnected ? prompt : "",
             style: connectedState.isStyleConnected ? (activeStyle?.prompt || null) : null,
+            characterReference: connectedState.characterReference ? activeCharacterReferencePrompt : null,
+            objectReference: connectedState.objectReference ? activeObjectReferencePrompt : null,
             ratio: connectedState.isRatioConnected ? ratio : null,
             resolution: connectedState.isResolutionConnected ? resolution : null,
             composition: connectedState.composition ? composition : null,
@@ -785,6 +1071,7 @@ function FlowContent() {
             mood: connectedState.mood ? mood : null,
             palette: connectedState.palette ? palette : null,
             cameraAngle: connectedState.cameraAngle ? cameraAngle : null,
+            objectAngle: connectedState.objectAngle ? objectAngle : null,
             lighting: connectedState.lighting ? lighting : null,
             gesture: connectedState.gesture ? gesture : null,
             propsPrompt: connectedState.props ? propsPrompt : null,
@@ -814,6 +1101,8 @@ function FlowContent() {
     prompt,
     styles,
     activeStyleId,
+    activeCharacterReferencePrompt,
+    activeObjectReferencePrompt,
     ratio,
     resolution,
     composition,
@@ -822,6 +1111,7 @@ function FlowContent() {
     mood,
     palette,
     cameraAngle,
+    objectAngle,
     lighting,
     gesture,
     propsPrompt,
@@ -899,7 +1189,7 @@ function FlowContent() {
       : null;
     const effectivePrompt = connectedState.isPromptConnected ? prompt : "";
 
-    if ((!effectivePrompt.trim() && !activeStyle) || isGenerating) return;
+    if ((!effectivePrompt.trim() && !activeStyle) || isGenerating || isTranslating) return;
 
     setIsGenerating(true);
     setError(false);
@@ -920,7 +1210,7 @@ function FlowContent() {
           target: "canvas-node",
           targetHandle: "canvas-in",
           style: { stroke: "var(--text-primary)", strokeWidth: 3 },
-          animated: true,
+          animated: false,
         },
       ];
     });
@@ -932,6 +1222,8 @@ function FlowContent() {
         body: JSON.stringify({
           prompt: effectivePrompt,
           style: activeStyle?.prompt || null,
+          characterReference: connectedState.characterReference ? activeCharacterReferencePrompt : null,
+          objectReference: connectedState.objectReference ? activeObjectReferencePrompt : null,
           ratio,
           resolution,
           composition: connectedState.composition ? composition : null,
@@ -940,6 +1232,7 @@ function FlowContent() {
           mood: connectedState.mood ? mood : null,
           palette: connectedState.palette ? palette : null,
           cameraAngle: connectedState.cameraAngle ? cameraAngle : null,
+          objectAngle: connectedState.objectAngle ? objectAngle : null,
           lighting: connectedState.lighting ? lighting : null,
           gesture: connectedState.gesture ? gesture : null,
           propsPrompt: connectedState.props ? propsPrompt : null,
@@ -967,17 +1260,20 @@ function FlowContent() {
       };
 
       const resultId = `result-${Date.now()}`;
+      const nextTitle = data.title?.trim() || createFallbackDisplayTitle(snapshot.prompt, snapshot.englishPrompt, snapshot.koreanPrompt);
       setGeneratedResults((prev) => {
         const nextResult: GeneratedResult = {
           ...snapshot,
           id: resultId,
-          title: data.title?.trim() || createFallbackDisplayTitle(snapshot.prompt, snapshot.englishPrompt, snapshot.koreanPrompt),
+          title: nextTitle,
           createdAt: new Date().toISOString(),
+          consistencyStatus: "pending",
         };
 
         setActiveResultId(resultId);
         return [nextResult, ...prev];
       });
+      void requestConsistencyInBackground(resultId, data.url, snapshot.englishPrompt);
       if (data.englishPrompt?.trim()) {
         setEnglishPrompt(data.englishPrompt.trim());
       }
@@ -991,6 +1287,8 @@ function FlowContent() {
     }
   }, [
     activeStyleId,
+    activeCharacterReferencePrompt,
+    activeObjectReferencePrompt,
     backgroundPrompt,
     captureCurrentSnapshot,
     composition,
@@ -999,15 +1297,18 @@ function FlowContent() {
     detailLevel,
     gesture,
     isGenerating,
+    isTranslating,
     lighting,
     mood,
     palette,
     prompt,
     propsPrompt,
+    requestConsistencyInBackground,
     ratio,
     resolution,
     styles,
     cameraAngle,
+    objectAngle,
     visibleEnglishPrompt,
   ]);
 
@@ -1060,6 +1361,7 @@ function FlowContent() {
     () => ({
       promptNode: PromptNode,
       styleNode: StyleNode,
+      referenceNode: ReferenceNode,
       ratioNode: RatioNode,
       resolutionNode: ResolutionNode,
       compositionNode: CompositionNode,
@@ -1068,6 +1370,7 @@ function FlowContent() {
       moodNode: MoodNode,
       paletteNode: PaletteNode,
       cameraAngleNode: CameraAngleNode,
+      objectAngleNode: ObjectAngleNode,
       lightingNode: LightingNode,
       gestureNode: GestureNode,
       propsNode: PropsNode,
@@ -1081,6 +1384,18 @@ function FlowContent() {
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     setNodes((prev) => applyNodeChanges(changes, prev));
   }, []);
+
+  const onNodeDragStop = useCallback<OnNodeDrag<FlowNode>>(() => {
+    if (!activeResultId) return;
+
+    const nodePositions = getNodePositions(nodesRef.current);
+    setGeneratedResults((prevResults) =>
+      prevResults.map((result) =>
+        result.id === activeResultId ? { ...result, nodePositions } : result,
+      ),
+    );
+  }, [activeResultId]);
+
   const onEdgesChange = useCallback((changes: EdgeChange<FlowEdge>[]) => {
     setEdges((prev) => applyEdgeChanges(changes, prev));
   }, []);
@@ -1116,6 +1431,34 @@ function FlowContent() {
       if (node.id === "style-node") {
         return { ...node, data: { ...baseData, styles, activeStyleId, setStyles, setActiveStyleId } };
       }
+      if (node.id === "character-reference-node") {
+        return {
+          ...node,
+          data: {
+            ...baseData,
+            kind: "character",
+            references: characterReferences,
+            activeReferenceId: activeCharacterReferenceId,
+            setReferences: setCharacterReferences,
+            setActiveReferenceId: setActiveCharacterReferenceId,
+            onRemove: () => removeOptionalNode("characterReference"),
+          },
+        };
+      }
+      if (node.id === "object-reference-node") {
+        return {
+          ...node,
+          data: {
+            ...baseData,
+            kind: "object",
+            references: objectReferences,
+            activeReferenceId: activeObjectReferenceId,
+            setReferences: setObjectReferences,
+            setActiveReferenceId: setActiveObjectReferenceId,
+            onRemove: () => removeOptionalNode("objectReference"),
+          },
+        };
+      }
       if (node.id === "ratio-node") {
         return { ...node, data: { ...baseData, ratio, setRatio } };
       }
@@ -1139,6 +1482,9 @@ function FlowContent() {
       }
       if (node.id === "camera-angle-node") {
         return { ...node, data: { ...baseData, cameraAngle, setCameraAngle, onRemove: () => removeOptionalNode("cameraAngle") } };
+      }
+      if (node.id === "object-angle-node") {
+        return { ...node, data: { ...baseData, objectAngle, setObjectAngle, onRemove: () => removeOptionalNode("objectAngle") } };
       }
       if (node.id === "lighting-node") {
         return { ...node, data: { ...baseData, lighting, setLighting, onRemove: () => removeOptionalNode("lighting") } };
@@ -1166,8 +1512,9 @@ function FlowContent() {
             lastTranslateDurationLabel: formatDurationLabel(lastTranslateDurationSeconds),
             onGenerate: handleGenerate,
             canGenerate:
-              (connectedState.isPromptConnected && !!prompt.trim()) ||
-              (connectedState.isStyleConnected && !!activeStyleId),
+              !isTranslating &&
+              ((connectedState.isPromptConnected && !!prompt.trim()) ||
+                (connectedState.isStyleConnected && !!activeStyleId)),
             isGenerating,
             generateElapsedLabel: formatDurationLabel(generateElapsedSeconds),
             lastGenerateDurationLabel: formatDurationLabel(lastGenerateDurationSeconds),
@@ -1196,6 +1543,10 @@ function FlowContent() {
     prompt,
     styles,
     activeStyleId,
+    characterReferences,
+    activeCharacterReferenceId,
+    objectReferences,
+    activeObjectReferenceId,
     ratio,
     resolution,
     composition,
@@ -1204,6 +1555,7 @@ function FlowContent() {
     mood,
     palette,
     cameraAngle,
+    objectAngle,
     lighting,
     gesture,
     propsPrompt,
@@ -1239,23 +1591,36 @@ function FlowContent() {
     () => generatedResults.find((result) => result.id === activeResultId) || null,
     [generatedResults, activeResultId],
   );
+  const activePreviewResult = useMemo(
+    () => {
+      if (activeResult && (!previewImageUrl || activeResult.imageUrl === previewImageUrl)) return activeResult;
+      return generatedResults.find((result) => result.imageUrl === previewImageUrl) || activeResult;
+    },
+    [activeResult, generatedResults, previewImageUrl],
+  );
 
   const previewTitle = useMemo(
-    () => getPreviewTitle(activeResult, prompt, visibleEnglishPrompt),
-    [activeResult, prompt, visibleEnglishPrompt],
+    () => getPreviewTitle(activePreviewResult, prompt, visibleEnglishPrompt),
+    [activePreviewResult, prompt, visibleEnglishPrompt],
   );
 
   const previewPrompt = useMemo(
-    () => getPreviewPrompt(activeResult, visibleEnglishPrompt),
-    [activeResult, visibleEnglishPrompt],
+    () => getPreviewPrompt(activePreviewResult, visibleEnglishPrompt),
+    [activePreviewResult, visibleEnglishPrompt],
   );
 
   const previewKoreanPrompt = useMemo(
-    () => getPreviewKoreanPrompt(activeResult, visibleKoreanPrompt),
-    [activeResult, visibleKoreanPrompt],
+    () => getPreviewKoreanPrompt(activePreviewResult, visibleKoreanPrompt),
+    [activePreviewResult, visibleKoreanPrompt],
   );
 
   const activePreviewPrompt = (previewPromptLanguage === "ko" ? previewKoreanPrompt : previewPrompt) ?? "";
+  const activePreviewConsistency = activePreviewResult?.consistency ?? emptyConsistency();
+  const canAnalyzePreviewConsistency = Boolean(
+    activePreviewResult?.id &&
+    previewImageUrl &&
+    activePreviewResult?.consistencyStatus !== "pending",
+  );
 
   const handlePreviewPromptLanguageChange = useCallback(
     async (language: "ko" | "en") => {
@@ -1269,8 +1634,8 @@ function FlowContent() {
 
       setIsPreviewKoreanPromptLoading(true);
       try {
-        if (activeResult?.id) {
-          await requestKoreanPromptInBackground(activeResult.id, previewPrompt);
+        if (activePreviewResult?.id) {
+          await requestKoreanPromptInBackground(activePreviewResult.id, previewPrompt);
           return;
         }
 
@@ -1295,7 +1660,7 @@ function FlowContent() {
       previewPrompt,
       previewKoreanPrompt,
       isPreviewKoreanPromptLoading,
-      activeResult,
+      activePreviewResult,
       requestKoreanPromptInBackground,
     ],
   );
@@ -1320,6 +1685,48 @@ function FlowContent() {
     document.body.removeChild(a);
     setIsPreviewImageDownloaded(true);
   }, [previewImageUrl]);
+
+  const analyzePreviewConsistency = useCallback(() => {
+    if (!activePreviewResult?.id || !previewImageUrl) return;
+    void requestConsistencyInBackground(activePreviewResult.id, previewImageUrl, previewPrompt);
+  }, [activePreviewResult, previewImageUrl, previewPrompt, requestConsistencyInBackground]);
+
+  const applyConsistencyAsReference = useCallback(
+    (kind: "character" | "object" | "style") => {
+      if (!previewImageUrl) return;
+      const promptByKind = {
+        character: activePreviewConsistency.character,
+        object: activePreviewConsistency.object,
+        style: activePreviewConsistency.style,
+      };
+      const nextPrompt = promptByKind[kind]?.trim();
+      if (!nextPrompt) return;
+
+      const entry = createReferenceEntryFromConsistency(kind, nextPrompt, previewImageUrl);
+      if (kind === "character") {
+        setCharacterReferences((prev) => [entry, ...prev]);
+        setActiveCharacterReferenceId(entry.id);
+        addOptionalNode("characterReference");
+        return;
+      }
+      if (kind === "object") {
+        setObjectReferences((prev) => [entry, ...prev]);
+        setActiveObjectReferenceId(entry.id);
+        addOptionalNode("objectReference");
+        return;
+      }
+
+      setStyles((prev) => [entry, ...prev]);
+      setActiveStyleId(entry.id);
+    },
+    [activePreviewConsistency, addOptionalNode, previewImageUrl],
+  );
+
+  const applyAllConsistency = useCallback(() => {
+    applyConsistencyAsReference("character");
+    applyConsistencyAsReference("object");
+    applyConsistencyAsReference("style");
+  }, [applyConsistencyAsReference]);
 
   if (viewMode === "gallery") {
     return (
@@ -1395,7 +1802,7 @@ function FlowContent() {
                 }}
               >
                 <ImagePlus size={16} />
-                첫 결과 만들기
+                이미지 생성
               </button>
             </div>
           ) : (
@@ -1459,6 +1866,7 @@ function FlowContent() {
         nodes={finalNodes}
         edges={edges}
         onNodesChange={onNodesChange}
+        onNodeDragStop={onNodeDragStop}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
@@ -1726,6 +2134,109 @@ function FlowContent() {
                     || (previewPromptLanguage === "ko"
                       ? (isPreviewKoreanPromptLoading ? "한글 프롬프트를 번역 중입니다." : "한글 프롬프트를 준비 중입니다.")
                       : "영문 프롬프트가 없습니다.")}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                    padding: "12px",
+                    borderRadius: "14px",
+                    backgroundColor: "var(--bg-canvas)",
+                    border: "1px solid var(--border-node)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 800, color: "var(--text-primary)" }}>일관성 앨리먼트</span>
+                    <span style={{ fontSize: "10px", fontWeight: 800, color: activePreviewResult?.consistencyStatus === "ready" ? "var(--port-prompt)" : "var(--text-muted)" }}>
+                      {activePreviewResult?.consistencyStatus === "pending"
+                        ? "분석 중"
+                        : activePreviewResult?.consistencyStatus === "failed"
+                          ? "분석 실패"
+                          : activePreviewResult?.consistencyStatus === "ready"
+                            ? "준비됨"
+                            : "없음"}
+                    </span>
+                  </div>
+                  {activePreviewResult?.consistencyStatus === "pending" ? (
+                    <div style={{ fontSize: "12px", lineHeight: 1.6, color: "var(--text-secondary)" }}>
+                      생성 이미지를 분석해 다음 생성에 재사용할 캐릭터, 오브젝트, 스타일 정보를 추출 중입니다.
+                    </div>
+                  ) : activePreviewResult?.consistency ? (
+                    <>
+                      {([
+                        ["character", "캐릭터", activePreviewConsistency.character],
+                        ["object", "오브젝트", activePreviewConsistency.object],
+                        ["style", "스타일", activePreviewConsistency.style],
+                        ["composition", "구도", activePreviewConsistency.composition],
+                      ] as const).map((item) => {
+                        const [key, label, value] = item;
+                        if (!value.trim()) return null;
+                        return (
+                          <div key={key} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
+                            <span style={{ fontSize: "11px", lineHeight: 1.55, color: "var(--text-primary)" }}>{value}</span>
+                          </div>
+                        );
+                      })}
+                      {activePreviewConsistency.rules.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: 0.4 }}>규칙</span>
+                          <span style={{ fontSize: "11px", lineHeight: 1.55, color: "var(--text-primary)" }}>
+                            {activePreviewConsistency.rules.join(" · ")}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                        <button type="button" onClick={() => applyConsistencyAsReference("character")} disabled={!activePreviewConsistency.character.trim()} style={{ height: 32, borderRadius: 999, border: "1px solid var(--border-node)", backgroundColor: "var(--bg-node-base)", color: activePreviewConsistency.character.trim() ? "var(--text-primary)" : "var(--text-muted)", fontSize: 11, fontWeight: 800, cursor: activePreviewConsistency.character.trim() ? "pointer" : "default" }}>캐릭터로 사용</button>
+                        <button type="button" onClick={() => applyConsistencyAsReference("object")} disabled={!activePreviewConsistency.object.trim()} style={{ height: 32, borderRadius: 999, border: "1px solid var(--border-node)", backgroundColor: "var(--bg-node-base)", color: activePreviewConsistency.object.trim() ? "var(--text-primary)" : "var(--text-muted)", fontSize: 11, fontWeight: 800, cursor: activePreviewConsistency.object.trim() ? "pointer" : "default" }}>오브젝트로 사용</button>
+                        <button type="button" onClick={() => applyConsistencyAsReference("style")} disabled={!activePreviewConsistency.style.trim()} style={{ height: 32, borderRadius: 999, border: "1px solid var(--border-node)", backgroundColor: "var(--bg-node-base)", color: activePreviewConsistency.style.trim() ? "var(--text-primary)" : "var(--text-muted)", fontSize: 11, fontWeight: 800, cursor: activePreviewConsistency.style.trim() ? "pointer" : "default" }}>스타일로 사용</button>
+                        <button type="button" onClick={applyAllConsistency} style={{ height: 32, borderRadius: 999, border: "1px solid color-mix(in srgb, var(--port-prompt) 50%, var(--border-node))", backgroundColor: "color-mix(in srgb, var(--port-prompt) 12%, transparent)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>전체 적용</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "12px", lineHeight: 1.6, color: "var(--text-secondary)" }}>
+                        이 결과에는 아직 일관성 앨리먼트가 없습니다. 버튼을 눌러 기존 이미지에서도 앨리먼트를 생성할 수 있습니다.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={analyzePreviewConsistency}
+                        disabled={!canAnalyzePreviewConsistency}
+                        style={{
+                          height: 34,
+                          borderRadius: 999,
+                          border: "1px solid color-mix(in srgb, var(--port-prompt) 50%, var(--border-node))",
+                          backgroundColor: canAnalyzePreviewConsistency ? "color-mix(in srgb, var(--port-prompt) 12%, transparent)" : "var(--bg-node-base)",
+                          color: canAnalyzePreviewConsistency ? "var(--text-primary)" : "var(--text-muted)",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: canAnalyzePreviewConsistency ? "pointer" : "default",
+                        }}
+                      >
+                        일관성 앨리먼트 생성
+                      </button>
+                    </>
+                  )}
+                  {activePreviewResult?.consistencyStatus === "failed" && (
+                    <button
+                      type="button"
+                      onClick={analyzePreviewConsistency}
+                      disabled={!canAnalyzePreviewConsistency}
+                      style={{
+                        height: 34,
+                        borderRadius: 999,
+                        border: "1px solid color-mix(in srgb, var(--port-prompt) 50%, var(--border-node))",
+                        backgroundColor: "color-mix(in srgb, var(--port-prompt) 12%, transparent)",
+                        color: "var(--text-primary)",
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      다시 생성
+                    </button>
+                  )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <button

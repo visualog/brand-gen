@@ -5,8 +5,8 @@ import { analyzeStyleViaWorker } from "@/lib/codex-worker-client";
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mimeType = "image/jpeg" } = await req.json();
-    const data = await analyzeStyleViaWorker({ imageBase64, mimeType });
+    const { imageBase64, mimeType = "image/jpeg", mode = "style" } = await req.json();
+    const data = await analyzeStyleViaWorker({ imageBase64, mimeType, mode });
     return NextResponse.json(data);
   } catch (error: unknown) {
     console.error("Style analysis error:", error);

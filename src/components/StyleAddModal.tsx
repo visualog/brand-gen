@@ -13,7 +13,35 @@ export interface StyleEntry {
 interface Props {
   onAdd: (entry: StyleEntry) => void;
   onClose: () => void;
+  mode?: "style" | "character" | "object";
 }
+
+const MODAL_COPY = {
+  style: {
+    title: "스타일 추가",
+    promptLabel: "스타일 프롬프트",
+    fallbackLabel: "사용자 스타일",
+    alt: "Style reference",
+    helper: "Codex가 스타일을 분석 중입니다",
+    placeholder: "스타일을 직접 설명하거나 'Codex 자동 분석'으로 제안을 받으세요...",
+  },
+  character: {
+    title: "캐릭터 참조 추가",
+    promptLabel: "캐릭터 고정 프롬프트",
+    fallbackLabel: "캐릭터 참조",
+    alt: "Character reference",
+    helper: "Codex가 캐릭터 특징을 분석 중입니다",
+    placeholder: "캐릭터의 외형, 의상, 비율, 특징을 직접 입력하거나 자동 분석하세요...",
+  },
+  object: {
+    title: "오브젝트 참조 추가",
+    promptLabel: "오브젝트 고정 프롬프트",
+    fallbackLabel: "오브젝트 참조",
+    alt: "Object reference",
+    helper: "Codex가 오브젝트 형태를 분석 중입니다",
+    placeholder: "오브젝트의 형태, 구조, 색상, 소재를 직접 입력하거나 자동 분석하세요...",
+  },
+} as const;
 
 function formatDurationLabel(totalSeconds: number | null) {
   if (totalSeconds === null) return null;
@@ -23,7 +51,8 @@ function formatDurationLabel(totalSeconds: number | null) {
   return seconds === 0 ? `${minutes}분` : `${minutes}분 ${seconds}초`;
 }
 
-export function StyleAddModal({ onAdd, onClose }: Props) {
+export function StyleAddModal({ onAdd, onClose, mode = "style" }: Props) {
+  const copy = MODAL_COPY[mode];
   const [imageUrl, setImageUrl] = useState<string>("");
   const [imageBase64, setImageBase64] = useState<string>("");
   const [mimeType, setMimeType] = useState<string>("image/jpeg");
@@ -105,7 +134,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
       const res = await fetch("/api/analyze-style", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: imageBase64 || imageUrl, mimeType }),
+        body: JSON.stringify({ imageBase64: imageBase64 || imageUrl, mimeType, mode }),
       });
       const data = await res.json();
       if (data.suggestedPrompt) {
@@ -152,7 +181,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
       id: `style-${Date.now()}`,
       imageUrl,
       prompt: prompt.trim(),
-      label: prompt.trim().slice(0, 30) || "사용자 스타일",
+      label: prompt.trim().slice(0, 30) || copy.fallbackLabel,
     });
     onClose();
   };
@@ -195,7 +224,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <ImageIcon size={16} color="var(--text-secondary)" />
             <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
-              스타일 추가
+              {copy.title}
             </span>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", borderRadius: "6px", display: "flex" }}>
@@ -291,7 +320,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
             <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", height: "200px" }}>
               <img
                 src={imageUrl}
-                alt="Style reference"
+                alt={copy.alt}
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
               <button
@@ -312,7 +341,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                스타일 프롬프트
+                {copy.promptLabel}
               </label>
               <button
                 onClick={handleAnalyze}
@@ -339,7 +368,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={hasImage
-                ? "스타일을 직접 설명하거나 'Codex 자동 분석'으로 제안을 받으세요..."
+                ? copy.placeholder
                 : "이미지를 먼저 첨부하세요."}
               rows={4}
               style={{
@@ -355,7 +384,7 @@ export function StyleAddModal({ onAdd, onClose }: Props) {
             {(isAnalyzing || lastAnalyzeDurationSeconds) && (
               <p style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "6px" }}>
                 {isAnalyzing
-                  ? `Codex가 스타일을 분석 중입니다 · ${formatDurationLabel(analyzeElapsedSeconds) ?? "0초"}`
+                  ? `${copy.helper} · ${formatDurationLabel(analyzeElapsedSeconds) ?? "0초"}`
                   : `마지막 분석 완료 · ${formatDurationLabel(lastAnalyzeDurationSeconds)}`}
               </p>
             )}

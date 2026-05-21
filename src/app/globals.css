@@ -32,6 +32,8 @@
   /* === Semantic Port & Flow Colors === */
   --port-prompt: #22c55e; /* Green */
   --port-style: #f97316; /* Orange */
+  --port-character-reference: #38bdf8; /* Sky */
+  --port-object-reference: #c084fc; /* Purple */
   --port-ratio: #3b82f6; /* Blue */
   --port-resolution: #8b5cf6; /* Purple */
   --port-composition: #14b8a6; /* Teal */
@@ -40,6 +42,7 @@
   --port-mood: #ec4899; /* Pink */
   --port-palette: #06b6d4; /* Cyan */
   --port-camera-angle: #10b981; /* Emerald */
+  --port-object-angle: #a855f7; /* Violet */
   --port-lighting: #facc15; /* Yellow */
   --port-gesture: #fb7185; /* Rose */
   --port-props: #84cc16; /* Lime */
