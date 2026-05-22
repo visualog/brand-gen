@@ -556,7 +556,7 @@ function appendObjectAnglePrompt(englishPrompt: string, objectAngle: string | nu
   const nextObjectAngle = objectAngle?.trim();
   if (!nextObjectAngle || nextObjectAngle === DEFAULT_SNAPSHOT.objectAngle) return englishPrompt;
   if (englishPrompt.includes(nextObjectAngle)) return englishPrompt;
-  if (englishPrompt.includes("mandatory object orientation")) return englishPrompt;
+  if (englishPrompt.includes("OBJECT ORIENTATION LOCK") || englishPrompt.includes("mandatory object orientation")) return englishPrompt;
 
   return [englishPrompt.trim(), nextObjectAngle].filter(Boolean).join(", ");
 }

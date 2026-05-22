@@ -90,14 +90,23 @@ function getFacingDescriptor(yaw: number) {
   return "front view, front side of the object visible";
 }
 
+function getPitchDescriptor(pitch: number) {
+  if (pitch >= 45) return "steep top-down tilt with top surfaces clearly visible";
+  if (pitch >= 18) return "slight top-down tilt with some top surfaces visible";
+  if (pitch <= -45) return "steep low-angle tilt with underside cues visible";
+  if (pitch <= -18) return "slight low-angle tilt with lower surfaces visible";
+  return "level eye-line tilt with no strong vertical pitch";
+}
+
 function formatObjectAngle(yaw: number, pitch: number) {
   if (yaw === 0 && pitch === 0) {
     return "object facing forward with neutral object rotation";
   }
 
   const facing = getFacingDescriptor(yaw);
+  const pitchView = getPitchDescriptor(pitch);
 
-  return `mandatory object orientation: ${facing}, yaw ${yaw} deg, pitch ${pitch} deg; rotate the object itself, not the camera; do not default to a front-facing object`;
+  return `OBJECT ORIENTATION LOCK: show the entire subject/object in ${facing}; ${pitchView}; yaw ${yaw} deg, pitch ${pitch} deg. Rotate the subject/object group itself, not just the camera. Use visible perspective cues, foreshortening, and changed silhouettes so it is not a normal front or side profile. Do not ignore this orientation.`;
 }
 
 function parseObjectAngle(value: string) {

@@ -2,12 +2,15 @@
   "name": "temp-app",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.mjs",
   "scripts": {
     "dev": "next dev",
     "dev:next": "next dev -H 127.0.0.1",
     "electron:dev": "node electron/dev.mjs",
     "electron": "electron ./electron",
     "codex-worker": "node scripts/codex-worker.mjs",
+    "build:next": "next build && node scripts/prepare-electron-package.mjs",
+    "pack:mac": "npm run build:next && electron-builder --mac --dir",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -27,8 +30,47 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "^42.2.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.visualog.brandgen",
+    "productName": "BrandGen",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "next",
+        "filter": [
+          "**/*",
+          "!node_modules/**/*"
+        ]
+      },
+      {
+        "from": ".next/standalone/node_modules",
+        "to": "next/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "scripts/codex-worker.mjs",
+        "to": "codex-worker.mjs"
+      }
+    ],
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.graphics-design"
+    }
   }
 }

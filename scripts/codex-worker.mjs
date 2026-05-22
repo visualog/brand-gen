@@ -30,6 +30,8 @@ function logDebug(label, payload) {
   console.log(`[codex-worker ${timestamp}] ${label}`, payload ?? "");
 }
 
+fs.mkdirSync(CODEX_WORKDIR, { recursive: true });
+
 function enqueue(task) {
   const next = queue.then(task, task);
   queue = next.catch(() => {});
@@ -122,6 +124,42 @@ function filePathToDataUrl(filePath) {
         : "image/png";
   const base64 = fs.readFileSync(filePath).toString("base64");
   return `data:${mimeType};base64,${base64}`;
+}
+
+async function imageInputToBuffer(imageInput) {
+  if (typeof imageInput !== "string" || !imageInput.trim()) {
+    throw new Error("이미지가 필요합니다.");
+  }
+
+  if (/^https?:\/\//i.test(imageInput)) {
+    const response = await fetch(imageInput, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`이미지 URL을 가져오지 못했습니다. (${response.status})`);
+    }
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    if (!contentType.startsWith("image/")) {
+      throw new Error("이미지 URL이 이미지 파일을 반환하지 않았습니다.");
+    }
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mimeType: contentType.split(";")[0],
+    };
+  }
+
+  const mimeMatch = imageInput.match(/^data:([^;]+);base64,/);
+  return {
+    buffer: Buffer.from(imageInput.replace(/^data:[^;]+;base64,/, ""), "base64"),
+    mimeType: mimeMatch?.[1] || "image/jpeg",
+  };
+}
+
+function imageExtensionFromMimeType(mimeType) {
+  const subtype = mimeType.split("/")[1]?.split(";")[0] || "jpeg";
+  if (subtype === "jpeg") return "jpg";
+  if (/^[a-z0-9]+$/i.test(subtype)) return subtype.toLowerCase();
+  return "jpg";
 }
 
 function findLatestGeneratedImage(threadId) {
@@ -431,10 +469,12 @@ IMPORTANT CAMERA RULE:
 ${objectAngle
     ? `
 IMPORTANT OBJECT ANGLE RULE:
-- Treat the Object Angle field as mandatory subject orientation.
-- Include the object orientation directly in enhancedPrompt using plain visual language.
-- Rotate the subject or product itself, not the camera viewpoint.
-- Do not default back to a front-facing object when Object Angle requests side or rear orientation.
+- Treat the Object Angle field as a strict orientation lock for the whole subject/object group.
+- Include the orientation directly in enhancedPrompt using concrete view language, not only numeric yaw/pitch.
+- Rotate the subject/product itself, not just the camera viewpoint or canvas framing.
+- Add visible perspective cues: changed silhouette, foreshortening, visible side/rear/top/underside surfaces when requested.
+- For bicycles, vehicles, packages, or props, the wheels/planes/edges must visibly change shape or overlap according to the locked orientation.
+- Do not default back to a normal front-facing or side-profile object when Object Angle requests a three-quarter, rear, top-down, or low-angle orientation.
 `
     : ""
   }
@@ -638,7 +678,12 @@ async function generateImageWithCodex({ prompt, style, characterReference, objec
   const { width, height } = getPixelSize(resolution, ratio);
   let promptBody = prebuiltPrompt?.trim() || "";
 
-  if (promptBody && objectAngle) {
+  if (
+    promptBody &&
+    objectAngle &&
+    !promptBody.includes("OBJECT ORIENTATION LOCK") &&
+    !promptBody.includes("mandatory object orientation")
+  ) {
     promptBody = `${promptBody}, ${objectAngle}`;
   }
   if (promptBody && characterReference) {
@@ -706,6 +751,7 @@ REQUIREMENTS:
 - no text, watermark, or logo
 - if a CONSISTENCY LOCK is present, preserve those identity details over pose, scene, or composition variation
 - do not redesign, simplify, recolor, swap, or reinterpret locked character/object identity details
+- if an OBJECT ORIENTATION LOCK is present, make the final drawing visibly obey that orientation with foreshortening and changed silhouette, not a normal front or side profile
 - return the generated image as the normal Codex image-generation result
 `.trim();
 
@@ -829,13 +875,10 @@ async function handleAnalyzeStyle(payload) {
   let tmpFile = null;
   try {
     const { imageBase64, mimeType = "image/jpeg", mode = "style" } = payload;
-    if (!imageBase64) {
-      throw new Error("이미지가 필요합니다.");
-    }
-    const ext = mimeType.split("/")[1]?.split(";")[0] || "jpg";
+    const imageData = await imageInputToBuffer(imageBase64);
+    const ext = imageExtensionFromMimeType(imageData.mimeType || mimeType);
     tmpFile = path.join(os.tmpdir(), `brandgen-style-${Date.now()}.${ext}`);
-    const buffer = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
-    fs.writeFileSync(tmpFile, buffer);
+    fs.writeFileSync(tmpFile, imageData.buffer);
     return { suggestedPrompt: await analyzeStyleWithCodex(tmpFile, mode) };
   } finally {
     if (tmpFile) {
@@ -848,13 +891,10 @@ async function handleAnalyzeConsistency(payload) {
   let tmpFile = null;
   try {
     const { imageBase64, prompt = "", mimeType = "image/jpeg" } = payload;
-    if (!imageBase64) {
-      throw new Error("이미지가 필요합니다.");
-    }
-    const ext = mimeType.split("/")[1]?.split(";")[0] || "jpg";
+    const imageData = await imageInputToBuffer(imageBase64);
+    const ext = imageExtensionFromMimeType(imageData.mimeType || mimeType);
     tmpFile = path.join(os.tmpdir(), `brandgen-consistency-${Date.now()}.${ext}`);
-    const buffer = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
-    fs.writeFileSync(tmpFile, buffer);
+    fs.writeFileSync(tmpFile, imageData.buffer);
     return await analyzeConsistencyWithCodex(tmpFile, prompt);
   } finally {
     if (tmpFile) {
