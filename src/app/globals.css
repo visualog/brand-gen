@@ -27,6 +27,7 @@
   --brand-mint: color-mix(in srgb, var(--port-element-board) 55%, var(--ui-surface-white));
   --brand-mint-deep: color-mix(in srgb, var(--port-camera-angle) 60%, var(--ui-surface-white));
   --brand-tan: color-mix(in srgb, var(--port-background) 36%, var(--ui-surface-white));
+  --port-image-mix: #0ea5e9;
 
   /* === App Compatibility Aliases === */
   --radius-sm: var(--ui-radius-md);

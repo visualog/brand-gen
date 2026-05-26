@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       detailLevel,
       prebuiltPrompt,
       elementSheetImages,
+      imageMixImages,
     } = await req.json();
 
     if (!prompt && !style && !prebuiltPrompt) {
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       detailLevel,
       prebuiltPrompt,
       elementSheetImages,
+      imageMixImages,
     });
 
     console.log("✅ 이미지 생성 완료!");

@@ -131,6 +131,11 @@ async function imageInputToBuffer(imageInput) {
     throw new Error("이미지가 필요합니다.");
   }
 
+  if (imageInput.startsWith("/")) {
+    const appUrl = process.env.BRANDGEN_APP_URL || "http://127.0.0.1:3000";
+    return imageInputToBuffer(`${appUrl}${imageInput}`);
+  }
+
   if (/^https?:\/\//i.test(imageInput)) {
     const response = await fetch(imageInput, {
       signal: AbortSignal.timeout(30000),
@@ -350,7 +355,7 @@ function runCodexExecForImageGeneration(prompt, timeoutMs = 240000, imagePaths =
   });
 }
 
-async function buildPromptWithCodex({ userInput, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel }) {
+async function buildPromptWithCodex({ userInput, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, imageMixPrompt }) {
   const instruction = `
 ${BRAND_STYLE_CONTEXT}
 
@@ -369,6 +374,7 @@ Lighting: ${lighting || "default"}
 Gesture: ${gesture || "default"}
 Props: ${propsPrompt || "default"}
 Detail Level: ${detailLevel || "default"}
+Image Mix: ${imageMixPrompt || "default"}
 Ratio: ${ratio || "1:1"}
 Resolution: ${resolution || "HD"}${
     resolution === "8K" || resolution === "4K"
@@ -514,6 +520,17 @@ ${detailLevel
 IMPORTANT DETAIL RULE:
 - Respect the Detail Level field as the complexity instruction.
 - Match the number of secondary forms and textures to the requested density.
+`
+    : ""
+  }
+
+${imageMixPrompt
+    ? `
+IMPORTANT IMAGE MIX RULE:
+- Treat Image Mix as role-based reference guidance, not a request to collage images together.
+- Preserve only the intended role from each reference image and combine those cues into one coherent new image.
+- Strong influence beats medium influence, and medium influence beats subtle influence when references conflict.
+- Do not invent extra brands, text, logos, or captions from the references.
 `
     : ""
   }
@@ -697,10 +714,21 @@ ${source}
   };
 }
 
-async function generateImageWithCodex({ prompt, style, characterReference, objectReference, ratio = "1:1", resolution = "HD", composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt, elementSheetImages = [] }) {
+async function generateImageWithCodex({ prompt, style, characterReference, objectReference, ratio = "1:1", resolution = "HD", composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt, elementSheetImages = [], imageMixImages = [] }) {
   const { width, height } = getPixelSize(resolution, ratio);
   let promptBody = prebuiltPrompt?.trim() || "";
   const sheetTmpFiles = [];
+  const imageMixItems = Array.isArray(imageMixImages)
+    ? imageMixImages.filter((item) => item && typeof item.imageUrl === "string" && item.imageUrl.trim())
+    : [];
+  const imageMixPrompt = imageMixItems.length
+    ? `IMAGE MIX REFERENCES: ${imageMixItems.map((item, index) => {
+        const role = item.role || "style";
+        const weight = item.weight || "medium";
+        const promptText = item.prompt || item.label || "use visible traits from this reference";
+        return `reference ${index + 1}: ${role}, ${weight} influence, ${promptText}`;
+      }).join(" | ")}. Use attached mix images as controlled references by role; combine their intended traits into one coherent new image, not a collage.`
+    : "";
 
   if (
     promptBody &&
@@ -715,6 +743,9 @@ async function generateImageWithCodex({ prompt, style, characterReference, objec
   }
   if (promptBody && objectReference) {
     promptBody = `${promptBody}, CONSISTENCY LOCK - object identity must match exactly: ${objectReference}`;
+  }
+  if (promptBody && imageMixPrompt && !promptBody.includes("IMAGE MIX REFERENCES")) {
+    promptBody = `${promptBody}, ${imageMixPrompt}`;
   }
 
   if (!promptBody) {
@@ -736,6 +767,7 @@ async function generateImageWithCodex({ prompt, style, characterReference, objec
       gesture,
       propsPrompt,
       detailLevel,
+      imageMixPrompt,
     });
     promptBody = [
       buildResult.enhancedPrompt,
@@ -761,6 +793,7 @@ async function generateImageWithCodex({ prompt, style, characterReference, objec
     width,
     height,
     usedPrebuiltPrompt: Boolean(prebuiltPrompt),
+    imageMixCount: imageMixItems.length,
     promptPreview: fullPrompt.slice(0, 300),
   });
   const instruction = `
@@ -769,11 +802,17 @@ Generate one image from this prompt.
 IMAGE PROMPT:
 ${fullPrompt}
 
+ATTACHED IMAGE MIX:
+${imageMixItems.length
+    ? imageMixItems.map((item, index) => `- image ${index + 1}: role=${item.role || "style"}, influence=${item.weight || "medium"}, note=${item.prompt || item.label || "visible traits"}`).join("\n")
+    : "- none"}
+
 REQUIREMENTS:
 - aspect ratio: ${ratio}
 - target size: ${width}x${height}
 - no text, watermark, or logo
 - if a CONSISTENCY LOCK is present, preserve those identity details over pose, scene, or composition variation
+- if IMAGE MIX REFERENCES are present, use attached mix images only for their assigned roles and influence levels
 - do not redesign, simplify, recolor, swap, or reinterpret locked character/object identity details
 - if an OBJECT ORIENTATION LOCK is present, make the final drawing visibly obey that orientation with foreshortening and changed silhouette, not a normal front or side profile
 - return the generated image as the normal Codex image-generation result
@@ -785,6 +824,13 @@ REQUIREMENTS:
       const imageData = await imageInputToBuffer(imageInput);
       const ext = imageExtensionFromMimeType(imageData.mimeType || "image/png");
       const tmpFile = path.join(os.tmpdir(), `xgen-element-reference-${Date.now()}-${index}.${ext}`);
+      fs.writeFileSync(tmpFile, imageData.buffer);
+      sheetTmpFiles.push(tmpFile);
+    }
+    for (const [index, item] of imageMixItems.entries()) {
+      const imageData = await imageInputToBuffer(item.imageUrl);
+      const ext = imageExtensionFromMimeType(imageData.mimeType || "image/png");
+      const tmpFile = path.join(os.tmpdir(), `xgen-image-mix-${Date.now()}-${index}.${ext}`);
       fs.writeFileSync(tmpFile, imageData.buffer);
       sheetTmpFiles.push(tmpFile);
     }
@@ -913,8 +959,8 @@ function writeJson(res, status, payload) {
 }
 
 async function handleTranslate(payload) {
-  const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel } = payload;
-  if (!prompt && !style && !characterReference && !objectReference && !ratio && !resolution && !composition && !background && !constraints && !mood && !palette && !cameraAngle && !objectAngle && !lighting && !gesture && !propsPrompt && !detailLevel) {
+  const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, imageMixPrompt } = payload;
+  if (!prompt && !style && !characterReference && !objectReference && !ratio && !resolution && !composition && !background && !constraints && !mood && !palette && !cameraAngle && !objectAngle && !lighting && !gesture && !propsPrompt && !detailLevel && !imageMixPrompt) {
     return { englishPrompt: "" };
   }
 
@@ -938,6 +984,7 @@ async function handleTranslate(payload) {
       gesture,
       propsPrompt,
       detailLevel,
+      imageMixPrompt,
     });
     if (result.enhancedPrompt) parts.push(result.enhancedPrompt);
     if (result.technicalTags?.length) parts.push(result.technicalTags.join(", "));
@@ -955,6 +1002,7 @@ async function handleTranslate(payload) {
   if (!prompt && gesture) parts.push(gesture);
   if (!prompt && propsPrompt) parts.push(propsPrompt);
   if (!prompt && detailLevel) parts.push(detailLevel);
+  if (imageMixPrompt) parts.push(imageMixPrompt);
   if (style) parts.push(style);
   if (!prompt) {
     if (ratio) parts.push(`${ratio} aspect ratio`);
@@ -1018,11 +1066,11 @@ async function handleAnalyzeConsistency(payload) {
 }
 
 async function handleGenerate(payload) {
-  const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt, elementSheetImages } = payload;
+  const { prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt, elementSheetImages, imageMixImages } = payload;
   if (!prompt && !style && !prebuiltPrompt) {
     throw new Error("프롬프트 또는 스타일이 필요합니다.");
   }
-  return generateImageWithCodex({ prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt, elementSheetImages });
+  return generateImageWithCodex({ prompt, style, characterReference, objectReference, ratio, resolution, composition, background, constraints, mood, palette, cameraAngle, objectAngle, lighting, gesture, propsPrompt, detailLevel, prebuiltPrompt, elementSheetImages, imageMixImages });
 }
 
 async function handleGenerateElementSheet(payload) {

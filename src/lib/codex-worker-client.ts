@@ -105,6 +105,7 @@ export function translateViaWorker(payload: {
   gesture?: string | null;
   propsPrompt?: string | null;
   detailLevel?: string | null;
+  imageMixPrompt?: string | null;
 }) {
   return postToWorker<WorkerTranslateResponse>("/translate", payload, 90000);
 }
@@ -159,6 +160,13 @@ export function generateViaWorker(payload: {
   detailLevel?: string | null;
   prebuiltPrompt?: string | null;
   elementSheetImages?: string[];
+  imageMixImages?: {
+    imageUrl: string;
+    role?: string;
+    weight?: string;
+    prompt?: string;
+    label?: string;
+  }[];
 }) {
   return postToWorker<WorkerGenerateResponse>("/generate", payload, 300000);
 }

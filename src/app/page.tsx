@@ -52,6 +52,7 @@ import { PropsNode } from "@/components/nodes/PropsNode";
 import { DetailNode } from "@/components/nodes/DetailNode";
 import { OutputNode } from "@/components/nodes/OutputNode";
 import { CanvasNode } from "@/components/nodes/CanvasNode";
+import { ImageMixNode, type ImageMixItem, type ImageMixRole, type ImageMixWeight } from "@/components/nodes/ImageMixNode";
 
 import type { StyleEntry } from "@/components/StyleAddModal";
 
@@ -98,6 +99,16 @@ const OPTIONAL_NODE_CONFIG = {
     sourceHandle: "element-board-out",
     edgeId: "e-element-board-output",
     color: "var(--port-element-board)",
+  },
+  imageMix: {
+    id: "image-mix-node",
+    type: "imageMixNode",
+    label: "이미지 믹스",
+    description: "여러 참조 이미지를 역할과 강도로 섞어 생성 기준을 만듭니다.",
+    position: { x: 300, y: 850 },
+    sourceHandle: "image-mix-out",
+    edgeId: "e-image-mix-output",
+    color: "var(--port-image-mix)",
   },
   background: {
     id: "background-node",
@@ -245,6 +256,7 @@ type EditorSnapshot = {
   objectReferences: StyleEntry[];
   activeObjectReferenceId: string | null;
   elementBoard: ElementBoard;
+  imageMixItems: ImageMixItem[];
   ratio: string;
   resolution: string;
   composition: string;
@@ -290,6 +302,7 @@ const NODE_SIZE_BY_TYPE: Record<string, { width: number; height: number }> = {
   promptNode: { width: 320, height: 240 },
   styleNode: { width: 320, height: 250 },
   referenceNode: { width: 280, height: 260 },
+  imageMixNode: { width: 300, height: 360 },
   elementItemNode: { width: 260, height: 180 },
   outputSettingsNode: { width: 240, height: 220 },
   objectAngleNode: { width: 260, height: 290 },
@@ -431,6 +444,49 @@ function normalizeElementBoard(board?: Partial<ElementBoard> | null): ElementBoa
   };
 }
 
+function normalizeImageMixRole(role: unknown): ImageMixRole {
+  return role === "character" ||
+    role === "object" ||
+    role === "style" ||
+    role === "palette" ||
+    role === "composition" ||
+    role === "background"
+    ? role
+    : "style";
+}
+
+function normalizeImageMixWeight(weight: unknown): ImageMixWeight {
+  return weight === "low" || weight === "medium" || weight === "high" ? weight : "medium";
+}
+
+function normalizeImageMixItem(item: Partial<ImageMixItem>, index: number): ImageMixItem | null {
+  const imageUrl = typeof item.imageUrl === "string" ? item.imageUrl.trim() : "";
+  if (!imageUrl) return null;
+
+  const prompt = typeof item.prompt === "string" ? item.prompt.trim() : "";
+  const label = typeof item.label === "string" && item.label.trim()
+    ? item.label.trim()
+    : prompt.slice(0, 30) || `이미지 믹스 ${index + 1}`;
+
+  return {
+    id: typeof item.id === "string" && item.id.trim() ? item.id : `image-mix-${Date.now()}-${index}`,
+    imageUrl,
+    prompt,
+    label,
+    role: normalizeImageMixRole(item.role),
+    weight: normalizeImageMixWeight(item.weight),
+    enabled: item.enabled !== false,
+  };
+}
+
+function normalizeImageMixItems(items?: Partial<ImageMixItem>[] | null): ImageMixItem[] {
+  return Array.isArray(items)
+    ? items
+        .map((item, index) => normalizeImageMixItem(item, index))
+        .filter((item): item is ImageMixItem => Boolean(item))
+    : [];
+}
+
 function fallbackElementsFromConsistency(consistency: ConsistencyElements): ElementBoardItem[] {
   const elements: Array<ElementBoardItem | null> = [
     consistency.character.trim()
@@ -495,6 +551,7 @@ const DEFAULT_SNAPSHOT: EditorSnapshot = {
   objectReferences: [],
   activeObjectReferenceId: null,
   elementBoard: emptyElementBoard(),
+  imageMixItems: [],
   ratio: "1:1",
   resolution: "HD",
   composition: "full-body composition with visible limbs and clear silhouette",
@@ -555,6 +612,7 @@ function normalizeEditorSnapshot(snapshot: Partial<EditorSnapshot>): EditorSnaps
     activeObjectReferenceId:
       typeof snapshot.activeObjectReferenceId === "string" ? snapshot.activeObjectReferenceId : null,
     elementBoard: normalizeElementBoard(snapshot.elementBoard),
+    imageMixItems: normalizeImageMixItems(snapshot.imageMixItems),
     ratio: typeof snapshot.ratio === "string" ? snapshot.ratio : DEFAULT_SNAPSHOT.ratio,
     resolution: typeof snapshot.resolution === "string" ? snapshot.resolution : DEFAULT_SNAPSHOT.resolution,
     composition: typeof snapshot.composition === "string" ? snapshot.composition : DEFAULT_SNAPSHOT.composition,
@@ -854,6 +912,38 @@ function appendElementBoardPrompt(englishPrompt: string, board: ElementBoard | n
   return [englishPrompt.trim(), elementBoardPrompt].filter(Boolean).join(", ");
 }
 
+function formatImageMixPrompt(items: ImageMixItem[]) {
+  const enabledItems = items.filter((item) => item.enabled !== false && item.imageUrl.trim());
+  if (enabledItems.length === 0) return "";
+
+  const roleLabel: Record<ImageMixRole, string> = {
+    character: "character identity",
+    object: "object form",
+    style: "visual style",
+    palette: "color palette",
+    composition: "composition",
+    background: "background mood",
+  };
+  const weightLabel: Record<ImageMixWeight, string> = {
+    low: "subtle influence",
+    medium: "balanced influence",
+    high: "strong influence",
+  };
+  const parts = enabledItems.map((item, index) => {
+    const prompt = item.prompt.trim() || item.label.trim() || "use visible traits from this image";
+    return `reference ${index + 1}: ${roleLabel[item.role]}, ${weightLabel[item.weight]}, ${prompt}`;
+  });
+
+  return `IMAGE MIX REFERENCES: ${parts.join(" | ")}. Use attached mix images as controlled references by role; combine their intended traits into one coherent new image, not a collage. Resolve conflicts by favoring stronger influence settings.`;
+}
+
+function appendImageMixPrompt(englishPrompt: string, items: ImageMixItem[]) {
+  const imageMixPrompt = formatImageMixPrompt(items);
+  if (!imageMixPrompt) return englishPrompt;
+  if (englishPrompt.includes("IMAGE MIX REFERENCES")) return englishPrompt;
+  return [englishPrompt.trim(), imageMixPrompt].filter(Boolean).join(", ");
+}
+
 function mergeGeneratedResults(
   localResults: GeneratedResult[] = [],
   fileResults: GeneratedResult[] = [],
@@ -947,6 +1037,7 @@ function FlowContent() {
   const [objectReferences, setObjectReferences] = useState<StyleEntry[]>(DEFAULT_SNAPSHOT.objectReferences);
   const [activeObjectReferenceId, setActiveObjectReferenceId] = useState<string | null>(DEFAULT_SNAPSHOT.activeObjectReferenceId);
   const [elementBoard, setElementBoard] = useState<ElementBoard>(DEFAULT_SNAPSHOT.elementBoard);
+  const [imageMixItems, setImageMixItems] = useState<ImageMixItem[]>(DEFAULT_SNAPSHOT.imageMixItems);
   const [ratio, setRatio] = useState(DEFAULT_SNAPSHOT.ratio);
   const [resolution, setResolution] = useState(DEFAULT_SNAPSHOT.resolution);
   const [composition, setComposition] = useState(DEFAULT_SNAPSHOT.composition);
@@ -1000,6 +1091,7 @@ function FlowContent() {
     setObjectReferences(normalizedSnapshot.objectReferences);
     setActiveObjectReferenceId(normalizedSnapshot.activeObjectReferenceId);
     setElementBoard(normalizedSnapshot.elementBoard);
+    setImageMixItems(normalizedSnapshot.imageMixItems);
     setRatio(normalizedSnapshot.ratio);
     setResolution(normalizedSnapshot.resolution);
     setComposition(normalizedSnapshot.composition);
@@ -1053,6 +1145,7 @@ function FlowContent() {
         objectReferences,
         activeObjectReferenceId,
         elementBoard,
+        imageMixItems,
         ratio,
         resolution,
         composition,
@@ -1085,6 +1178,7 @@ function FlowContent() {
       objectReferences,
       activeObjectReferenceId,
       elementBoard,
+      imageMixItems,
       ratio,
       resolution,
       composition,
@@ -1242,6 +1336,9 @@ function FlowContent() {
         const isConnected =
           key === "elementBoard"
             ? elementBoard.elements.some((element) => element.enabled !== false)
+            : key === "imageMix"
+              ? imageMixItems.some((item) => item.enabled !== false) &&
+                edges.some((e) => e.target === "output-node" && e.source === config.id)
             : edges.some((e) => e.target === "output-node" && e.source === config.id);
         return [key, isConnected];
       }),
@@ -1255,7 +1352,7 @@ function FlowContent() {
       isResolutionConnected: isOutputSettingsConnected,
       ...optionals,
     };
-  }, [edges, elementBoard.elements]);
+  }, [edges, elementBoard.elements, imageMixItems]);
 
   const hasAnyConnection = useMemo(
     () =>
@@ -1305,6 +1402,9 @@ function FlowContent() {
         elementIds: elementBoard.elements
           .filter((element) => element.enabled !== false)
           .map((element) => element.id),
+        imageMixIds: imageMixItems
+          .filter((item) => item.enabled !== false)
+          .map((item) => `${item.id}:${item.role}:${item.weight}`),
         connectedState,
       }),
     [
@@ -1326,17 +1426,29 @@ function FlowContent() {
       propsPrompt,
       detailLevel,
       elementBoard.elements,
+      imageMixItems,
       connectedState,
     ],
   );
+  const connectedImageMixItems = useMemo(
+    () => (connectedState.imageMix ? imageMixItems.filter((item) => item.enabled !== false && item.imageUrl.trim()) : []),
+    [connectedState.imageMix, imageMixItems],
+  );
+  const imageMixPrompt = useMemo(
+    () => formatImageMixPrompt(connectedImageMixItems),
+    [connectedImageMixItems],
+  );
   const visibleEnglishPrompt = hasAnyConnection
-    ? appendElementBoardPrompt(
-        appendConsistencyReferences(
-          appendObjectAnglePrompt(englishPrompt, connectedState.objectAngle ? objectAngle : null),
-          connectedState.characterReference ? activeCharacterReferencePrompt : null,
-          connectedState.objectReference ? activeObjectReferencePrompt : null,
+    ? appendImageMixPrompt(
+        appendElementBoardPrompt(
+          appendConsistencyReferences(
+            appendObjectAnglePrompt(englishPrompt, connectedState.objectAngle ? objectAngle : null),
+            connectedState.characterReference ? activeCharacterReferencePrompt : null,
+            connectedState.objectReference ? activeObjectReferencePrompt : null,
+          ),
+          connectedState.elementBoard ? elementBoard : null,
         ),
-      connectedState.elementBoard ? elementBoard : null,
+        connectedImageMixItems,
       )
     : "";
   const generationEnglishPrompt = visibleEnglishPrompt;
@@ -1376,6 +1488,9 @@ function FlowContent() {
     if (connectedState.elementBoard && enabledElementCount > 0) {
       detailLines.push(`앨리먼트 보드: ${enabledElementCount}개 요소 고정`);
     }
+    if (connectedState.imageMix && connectedImageMixItems.length > 0) {
+      detailLines.push(`이미지 믹스: ${connectedImageMixItems.length}개 참조를 역할별로 혼합`);
+    }
 
     const automaticBrief = [...primaryLines, ...detailLines].join("\n");
     return koreanPrompt.trim() || automaticBrief || "연결된 노드를 기준으로 생성 브리프를 준비 중입니다.";
@@ -1402,6 +1517,7 @@ function FlowContent() {
     propsPrompt,
     detailLevel,
     enabledElementCount,
+    connectedImageMixItems,
     koreanPrompt,
   ]);
 
@@ -1566,6 +1682,7 @@ function FlowContent() {
             gesture: connectedState.gesture ? gesture : null,
             propsPrompt: connectedState.props ? propsPrompt : null,
             detailLevel: connectedState.detail ? detailLevel : null,
+            imageMixPrompt: connectedState.imageMix ? imageMixPrompt : null,
           }),
           signal: controller.signal,
         });
@@ -1606,6 +1723,7 @@ function FlowContent() {
     gesture,
     propsPrompt,
     detailLevel,
+    imageMixPrompt,
     connectedState,
     hasAnyConnection,
   ]);
@@ -1640,6 +1758,7 @@ function FlowContent() {
           gesture: connectedState.gesture ? gesture : null,
           propsPrompt: connectedState.props ? propsPrompt : null,
           detailLevel: connectedState.detail ? detailLevel : null,
+          imageMixPrompt: connectedState.imageMix ? imageMixPrompt : null,
         }),
         signal: controller.signal,
       });
@@ -1665,6 +1784,7 @@ function FlowContent() {
     connectedState,
     constraints,
     detailLevel,
+    imageMixPrompt,
     gesture,
     isTranslating,
     lighting,
@@ -1797,6 +1917,13 @@ function FlowContent() {
           detailLevel: connectedState.detail ? detailLevel : null,
           prebuiltPrompt: generationEnglishPrompt || null,
           elementSheetImages: connectedElementSheetImages,
+          imageMixImages: connectedImageMixItems.map((item) => ({
+            imageUrl: item.imageUrl,
+            role: item.role,
+            weight: item.weight,
+            prompt: item.prompt,
+            label: item.label,
+          })),
         }),
       });
 
@@ -1859,6 +1986,7 @@ function FlowContent() {
     composition,
     connectedState,
     connectedElementSheetImages,
+    connectedImageMixItems,
     constraints,
     detailLevel,
     gesture,
@@ -2133,6 +2261,7 @@ function FlowContent() {
       promptNode: PromptNode,
       styleNode: StyleNode,
       referenceNode: ReferenceNode,
+      imageMixNode: ImageMixNode,
       elementItemNode: ElementItemNode,
       outputSettingsNode: OutputSettingsNode,
       compositionNode: CompositionNode,
@@ -2228,6 +2357,17 @@ function FlowContent() {
             setReferences: setObjectReferences,
             setActiveReferenceId: setActiveObjectReferenceId,
             onRemove: () => removeOptionalNode("objectReference"),
+          },
+        };
+      }
+      if (node.id === "image-mix-node") {
+        return {
+          ...node,
+          data: {
+            ...baseData,
+            items: imageMixItems,
+            setItems: setImageMixItems,
+            onRemove: () => removeOptionalNode("imageMix"),
           },
         };
       }
@@ -2350,6 +2490,7 @@ function FlowContent() {
     activeCharacterReferenceId,
     objectReferences,
     activeObjectReferenceId,
+    imageMixItems,
     elementBoard,
     generateElementSheet,
     updateElementBoardItem,
