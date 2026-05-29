@@ -11,20 +11,35 @@ The implementation keeps the existing `cameraAngle: string` state pipeline intac
 - `src/components/nodes/CameraAngleNode.tsx`
 - `docs/camera-angle-ui-rag-improvement-plan.md`
 - `docs/camera-angle-ui-improvement-report.md`
+- `notes/fabric-camera-orbit-ui-plan.md`
 
 ## Implemented Changes
 
-### Orbit Mini Viewer
+### Full Orbit Mini Viewer
 
-The old flat `LEFT / RIGHT / HIGH / LOW` coordinate pad was replaced with a compact orbit viewer:
+The old flat `LEFT / RIGHT / HIGH / LOW` coordinate pad was replaced with a compact full-orbit viewer:
 
-- central subject silhouette
-- orbit ring around the subject
-- camera marker positioned around the subject
+- neutral 3D object pivot
+- spherical orbit guide around the subject
+- camera marker positioned in front/back/left/right/top/bottom space
+- camera marker scale and opacity indicate depth
+- connector line from subject to camera marker
 - pitch indicator on the side
-- front/back/left/right direction labels
+- front/back/left/right/top/bottom direction labels
+- six axis snap buttons for front, back, left, right, top, and bottom placement
 - double-click resets the orbit to front eye-level
 - Shift-drag snaps yaw and pitch to 15-degree increments
+
+### Main Object Representation
+
+The central reference was changed from an abstract silhouette into a neutral isometric cube:
+
+- three visible shaded faces
+- center target dot
+- small `OBJECT` label
+- no person/body silhouette that could be mistaken for the generated subject
+
+This makes the control read as a 3D object pivot rather than a specific character or product.
 
 ### Readable Summary
 
@@ -32,6 +47,8 @@ The primary summary no longer exposes technical values first.
 
 It now shows:
 
+- `위치`: camera location around the object, such as front, back, left, or right
+- `높이`: camera height, such as above, eye-level, or below
 - `시점`: interpreted view direction such as left three-quarter or low angle
 - `프레이밍`: close, medium, wide, or establishing framing
 - `렌즈감`: wide, standard, or telephoto
@@ -127,7 +144,7 @@ Reason: no valid Developer ID Application certificate is installed.
 Searched generated bundles for the updated camera UI strings:
 
 ```bash
-rg -n "카메라 오빗 뷰어|렌즈감|고급 조정|Technical camera values" .next/static .next/standalone release/mac/xGen.app/Contents/Resources/next
+rg -n "OBJECT|카메라 축 스냅|위에서 내려봄|아래에서 올려봄|오브젝트 뒤|오브젝트 앞" src .next release/mac/xGen.app/Contents/Resources/next
 ```
 
 Result: updated strings were present in the built output.
@@ -143,6 +160,8 @@ du -sh release/mac/xGen.app .next/standalone
 Result:
 
 ```text
-646M release/mac/xGen.app
-44M  .next/standalone
+954M release/mac/xGen.app
+353M .next/standalone
 ```
+
+Note: this size increase is not caused by the camera-angle UI change. The production trace currently includes `style-references` through `.next/server/app/api/xmark/generate/route.js.nft.json`, which adds roughly 309M to `.next/standalone`. That should be handled as a separate packaging cleanup.

@@ -36,6 +36,15 @@ const PRESETS: { label: string; model: CameraModel }[] = [
   { label: "탑뷰", model: { yaw: 0, pitch: 60, roll: 0, lens: 45, distance: "wide" } },
 ];
 
+const AXIS_VIEWS: { label: string; model: Pick<CameraModel, "yaw" | "pitch"> }[] = [
+  { label: "앞", model: { yaw: 0, pitch: 0 } },
+  { label: "뒤", model: { yaw: 180, pitch: 0 } },
+  { label: "좌", model: { yaw: -90, pitch: 0 } },
+  { label: "우", model: { yaw: 90, pitch: 0 } },
+  { label: "위", model: { yaw: 0, pitch: 60 } },
+  { label: "아래", model: { yaw: 0, pitch: -60 } },
+];
+
 const LENS_PRESETS = [
   { label: "광각", value: 24, description: "공간 넓게" },
   { label: "표준", value: 50, description: "자연스럽게" },
@@ -169,6 +178,22 @@ function describeViewKorean(model: CameraModel) {
   return `${horizontal} · ${vertical}`;
 }
 
+function describeCameraPositionKorean(model: CameraModel) {
+  const yaw = Math.abs(model.yaw);
+  if (yaw < 12) return "오브젝트 앞";
+  if (yaw > 150) return "오브젝트 뒤";
+  if (model.yaw < 0) return yaw < 60 ? "좌측 앞" : yaw < 125 ? "좌측" : "좌측 뒤";
+  return yaw < 60 ? "우측 앞" : yaw < 125 ? "우측" : "우측 뒤";
+}
+
+function describeCameraHeightKorean(pitch: number) {
+  if (pitch > 45) return "위에서 내려봄";
+  if (pitch > 16) return "살짝 위";
+  if (pitch < -45) return "아래에서 올려봄";
+  if (pitch < -16) return "살짝 아래";
+  return "눈높이";
+}
+
 function describeLensKorean(lens: number) {
   if (lens < 35) return "광각";
   if (lens < 75) return "표준";
@@ -197,6 +222,10 @@ function formatCameraPrompt(model: CameraModel) {
 
 function modelsEqual(a: CameraModel, b: CameraModel) {
   return a.yaw === b.yaw && a.pitch === b.pitch && a.roll === b.roll && a.lens === b.lens && a.distance === b.distance;
+}
+
+function axesEqual(a: CameraModel, b: Pick<CameraModel, "yaw" | "pitch">) {
+  return a.yaw === b.yaw && a.pitch === b.pitch;
 }
 
 export function CameraAngleNode({ id, data }: { id: string; data: CameraAngleNodeData }) {
@@ -238,8 +267,16 @@ export function CameraAngleNode({ id, data }: { id: string; data: CameraAngleNod
   );
 
   const yawRad = (camera.yaw * Math.PI) / 180;
-  const orbitCameraX = `${50 + Math.sin(yawRad) * 36}%`;
-  const orbitCameraY = `${55 + Math.cos(yawRad) * 25 - camera.pitch * 0.08}%`;
+  const pitchRad = (camera.pitch * Math.PI) / 180;
+  const orbitX = Math.sin(yawRad) * Math.cos(pitchRad);
+  const orbitY = Math.sin(pitchRad);
+  const orbitZ = Math.cos(yawRad) * Math.cos(pitchRad);
+  const orbitCameraX = 50 + orbitX * 38;
+  const orbitCameraY = 52 - orbitY * 34 + orbitZ * 18;
+  const orbitCameraScale = 0.78 + ((orbitZ + 1) / 2) * 0.34;
+  const orbitCameraOpacity = 0.62 + ((orbitZ + 1) / 2) * 0.38;
+  const orbitCameraLayer = orbitZ >= 0 ? 7 : 3;
+  const subjectLayer = orbitZ >= 0 ? 5 : 7;
   const pitchY = `${((60 - camera.pitch) / 135) * 100}%`;
   const activeLensPreset = LENS_PRESETS.reduce((closest, preset) => (
     Math.abs(preset.value - camera.lens) < Math.abs(closest.value - camera.lens) ? preset : closest
@@ -283,10 +320,38 @@ export function CameraAngleNode({ id, data }: { id: string; data: CameraAngleNod
           ))}
         </div>
 
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "calc(var(--ui-space-unit) * 1.2)" }} className="nodrag" aria-label="카메라 축 스냅">
+          {AXIS_VIEWS.map((axis) => {
+            const isActive = axesEqual(camera, axis.model);
+            return (
+              <button
+                key={axis.label}
+                type="button"
+                onClick={() => updateCamera(axis.model)}
+                title={`${axis.label} 방향으로 카메라 배치`}
+                style={{
+                  minHeight: 28,
+                  borderRadius: "var(--ui-radius-pill)",
+                  border: `1px solid ${isActive ? "var(--port-camera-angle)" : "var(--border-node)"}`,
+                  backgroundColor: isActive
+                    ? "color-mix(in srgb, var(--port-camera-angle) 14%, transparent)"
+                    : "var(--bg-canvas)",
+                  color: isActive ? "var(--port-camera-angle)" : "var(--text-secondary)",
+                  fontSize: "var(--ui-type-xs-size)",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                {axis.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div
           className="nodrag"
           role="slider"
-          aria-label="카메라 오빗 뷰어"
+          aria-label="전방향 카메라 오빗 뷰어"
           aria-valuemin={-180}
           aria-valuemax={180}
           aria-valuenow={camera.yaw}
@@ -308,36 +373,50 @@ export function CameraAngleNode({ id, data }: { id: string; data: CameraAngleNod
           onDoubleClick={() => updateCamera({ yaw: 0, pitch: 0 })}
           style={{
             position: "relative",
-            height: 176,
+            height: 206,
             borderRadius: "var(--ui-radius-xl)",
             border: "1px solid var(--border-node)",
             overflow: "hidden",
             background:
-              "radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--port-camera-angle) 13%, transparent), transparent 36%), linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 7%, transparent), transparent 55%), var(--bg-canvas)",
+              "radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--port-camera-angle) 13%, transparent), transparent 39%), linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 7%, transparent), transparent 58%), var(--bg-canvas)",
             cursor: "crosshair",
             touchAction: "none",
           }}
         >
-          <div style={{ position: "absolute", left: "16%", right: "16%", top: "31%", bottom: "21%", border: "1px solid color-mix(in srgb, var(--port-camera-angle) 34%, var(--border-node))", borderRadius: "50%", transform: "rotateX(62deg)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--bg-node-base) 55%, transparent)" }} />
-          <div style={{ position: "absolute", left: "50%", top: "56%", width: 44, height: 56, transform: "translate(-50%, -50%)", borderRadius: "999px 999px 12px 12px", background: "linear-gradient(180deg, color-mix(in srgb, var(--port-camera-angle) 22%, var(--bg-node-base)), var(--bg-node-base))", border: "1px solid color-mix(in srgb, var(--port-camera-angle) 28%, var(--border-node))", boxShadow: "0 10px 18px color-mix(in srgb, var(--text-primary) 8%, transparent)" }} />
-          <div style={{ position: "absolute", left: "50%", top: "45%", width: 18, height: 18, transform: "translate(-50%, -50%)", borderRadius: "50%", backgroundColor: "color-mix(in srgb, var(--port-camera-angle) 54%, var(--bg-node-base))", border: "2px solid var(--bg-node-base)" }} />
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: "6% 12% 10%", width: "76%", height: "84%", pointerEvents: "none", zIndex: 1 }}>
+            <ellipse cx="50" cy="52" rx="42" ry="25" fill="none" stroke="color-mix(in srgb, var(--port-camera-angle) 38%, var(--border-node))" strokeWidth="0.8" />
+            <ellipse cx="50" cy="52" rx="42" ry="25" fill="none" stroke="color-mix(in srgb, var(--bg-node-base) 80%, transparent)" strokeWidth="0.4" strokeDasharray="2 3" />
+            <ellipse cx="50" cy="52" rx="18" ry="42" fill="none" stroke="color-mix(in srgb, var(--border-node) 80%, transparent)" strokeWidth="0.55" />
+            <ellipse cx="50" cy="52" rx="31" ry="42" fill="none" stroke="color-mix(in srgb, var(--border-node) 68%, transparent)" strokeWidth="0.45" />
+            <line x1="8" y1="52" x2="92" y2="52" stroke="color-mix(in srgb, var(--border-node) 62%, transparent)" strokeWidth="0.45" />
+            <line x1="50" y1="10" x2="50" y2="94" stroke="color-mix(in srgb, var(--border-node) 62%, transparent)" strokeWidth="0.45" />
+            <line x1="50" y1="52" x2={orbitCameraX} y2={orbitCameraY} stroke="color-mix(in srgb, var(--port-camera-angle) 42%, transparent)" strokeWidth="0.75" strokeDasharray={orbitZ >= 0 ? "none" : "2 2"} />
+          </svg>
+
+          <OrbitSubject zIndex={subjectLayer} />
+          <div style={{ position: "absolute", left: "50%", top: "52%", width: 74, height: 74, transform: "translate(-50%, -50%)", zIndex: subjectLayer - 1, borderRadius: "50%", border: "1px dashed color-mix(in srgb, var(--port-camera-angle) 34%, transparent)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", left: "9%", top: "14%", bottom: "14%", width: 3, borderRadius: "var(--ui-radius-pill)", background: "color-mix(in srgb, var(--border-node) 70%, transparent)" }}>
             <div style={{ position: "absolute", left: -5, top: pitchY, width: 13, height: 13, transform: "translateY(-50%)", borderRadius: "50%", background: "var(--port-camera-angle)", border: "2px solid var(--bg-node-base)" }} />
           </div>
-          <span style={{ position: "absolute", left: 19, top: 13, color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>HIGH</span>
-          <span style={{ position: "absolute", left: 21, bottom: 13, color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>LOW</span>
-          <span style={{ position: "absolute", left: "50%", bottom: 9, transform: "translateX(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>FRONT</span>
-          <span style={{ position: "absolute", left: "50%", top: 9, transform: "translateX(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>BACK</span>
-          <span style={{ position: "absolute", left: "17%", top: "55%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>LEFT</span>
-          <span style={{ position: "absolute", right: "15%", top: "55%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>RIGHT</span>
+          <span style={{ position: "absolute", left: 19, top: 13, color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>상단</span>
+          <span style={{ position: "absolute", left: 21, bottom: 13, color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>하단</span>
+          <span style={{ position: "absolute", left: "50%", bottom: 9, transform: "translateX(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>앞</span>
+          <span style={{ position: "absolute", left: "50%", top: 9, transform: "translateX(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>뒤</span>
+          <span style={{ position: "absolute", left: "17%", top: "52%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>좌</span>
+          <span style={{ position: "absolute", right: "16%", top: "52%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>우</span>
+          <span style={{ position: "absolute", right: 10, top: 10, color: orbitZ >= 0 ? "var(--port-camera-angle)" : "var(--text-muted)", fontSize: "10px", fontWeight: 850 }}>
+            {orbitZ >= 0 ? "카메라 앞쪽" : "카메라 뒤쪽"}
+          </span>
           <div
             style={{
               position: "absolute",
-              left: orbitCameraX,
-              top: orbitCameraY,
+              left: `${orbitCameraX}%`,
+              top: `${orbitCameraY}%`,
               width: 28,
               height: 28,
-              transform: "translate(-50%, -50%)",
+              transform: `translate(-50%, -50%) scale(${orbitCameraScale})`,
+              zIndex: orbitCameraLayer,
+              opacity: orbitCameraOpacity,
               borderRadius: "50%",
               backgroundColor: "var(--port-camera-angle)",
               border: "2px solid var(--bg-node-base)",
@@ -354,6 +433,8 @@ export function CameraAngleNode({ id, data }: { id: string; data: CameraAngleNod
         </div>
 
         <div style={{ display: "grid", gap: "var(--ui-space-6)", border: "1px solid var(--border-node)", borderRadius: "var(--ui-space-10)", backgroundColor: "var(--bg-canvas)", padding: "var(--ui-space-10)" }}>
+          <SummaryRow label="위치" value={describeCameraPositionKorean(camera)} />
+          <SummaryRow label="높이" value={describeCameraHeightKorean(camera.pitch)} />
           <SummaryRow label="시점" value={describeViewKorean(camera)} />
           <SummaryRow label="프레이밍" value={DISTANCE_LABEL[camera.distance]} />
           <SummaryRow label="렌즈감" value={describeLensKorean(camera.lens)} />
@@ -524,6 +605,56 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <span style={{ color: "var(--text-muted)", fontSize: "var(--ui-type-xs-size)", fontWeight: 850 }}>{label}</span>
       <span style={{ color: "var(--text-secondary)", fontSize: "var(--ui-type-xs-size)", fontWeight: 900, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
     </div>
+  );
+}
+
+function OrbitSubject({ zIndex }: { zIndex: number }) {
+  return (
+    <svg
+      viewBox="0 0 84 84"
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "52%",
+        width: 70,
+        height: 70,
+        transform: "translate(-50%, -50%)",
+        zIndex,
+        overflow: "visible",
+        pointerEvents: "none",
+        filter: "drop-shadow(0 12px 18px color-mix(in srgb, var(--text-primary) 11%, transparent))",
+      }}
+    >
+      <path
+        d="M42 8 69 23 42 38 15 23Z"
+        fill="color-mix(in srgb, var(--port-camera-angle) 32%, var(--bg-node-base))"
+        stroke="color-mix(in srgb, var(--port-camera-angle) 52%, var(--border-node))"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M15 23 42 38 42 72 15 56Z"
+        fill="color-mix(in srgb, var(--port-camera-angle) 16%, var(--bg-node-base))"
+        stroke="color-mix(in srgb, var(--port-camera-angle) 42%, var(--border-node))"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M69 23 42 38 42 72 69 56Z"
+        fill="color-mix(in srgb, var(--port-camera-angle) 24%, var(--bg-node-base))"
+        stroke="color-mix(in srgb, var(--port-camera-angle) 46%, var(--border-node))"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M42 8V38M15 23 42 38 69 23"
+        fill="none"
+        stroke="color-mix(in srgb, var(--bg-node-base) 70%, transparent)"
+        strokeWidth="1"
+      />
+      <circle cx="42" cy="38" r="5.5" fill="var(--port-camera-angle)" stroke="var(--bg-node-base)" strokeWidth="2.5" />
+      <text x="42" y="83" textAnchor="middle" fill="var(--text-muted)" fontSize="9" fontWeight="850">
+        OBJECT
+      </text>
+    </svg>
   );
 }
 
